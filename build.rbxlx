@@ -1,0 +1,4882 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="ModuleScript" referent="1">
+      <Properties>
+        <string name="Name">CatmullRomSpline</string>
+        <string name="Source">-- TODO: Support inputting numbers
+-- TODO: Support inputting position arrays (X, Y, Z)
+-- TODO: Support inputting arbitrary arrays (n_0, n_1, ..., n_k)
+-- TODO: Support variable caching of GetSplineFromAlpha depending on #splines in chain
+-- TODO: Cache GetArcLengthAlpha
+-- TODO: Get nearest point on spline
+-- TODO: Get alpha from length
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local t = require(ReplicatedStorage.t)
+
+local RIEMANN_STEP = 1e-2
+local EPSILON = 1e-4
+-- local DT = Vector3.new(1, 1, 1) * RIEMANN_STEP
+
+local CatmullRomSpline = {Spline = {}, Chain = {}}
+local TupleSplineMetatable = {}
+local VectorSplineMetatable = {}
+local CFrameSplineMetatable = setmetatable({}, VectorSplineMetatable)
+TupleSplineMetatable.__index = TupleSplineMetatable
+VectorSplineMetatable.__index = VectorSplineMetatable
+CFrameSplineMetatable.__index = CFrameSplineMetatable
+
+---- Spherical quadrangle interpolation (SQUAD) (by fractality)
+local function InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
+	local w = w0*w1 + x0*x1 + y0*y1 + z0*z1
+	local x = w0*x1 - x0*w1 + y0*z1 - z0*y1
+	local y = w0*y1 - x0*z1 - y0*w1 + z0*x1
+	local z = w0*z1 + x0*y1 - y0*x1 - z0*w1
+
+	local v = math.sqrt(x^2 + y^2 + z^2)
+	local s = v > EPSILON and math.atan2(v, w)/(4*v) or 8/21 + w*(-27/140 + w*(8/105 - w/70))
+	return x*s, y*s, z*s
+end
+local function GetControlRotation(w0, x0, y0, z0, w1, x1, y1, z1, w2, x2, y2, z2)
+	if w0*w1 + x0*x1 + y0*y1 + z0*z1 &lt; 0 then
+		w0, x0, y0, z0 = -w0, -x0, -y0, -z0
+	end
+	if w2*w1 + x2*x1 + y2*y1 + z2*z1 &lt; 0 then
+		w2, x2, y2, z2 = -w2, -x2, -y2, -z2
+	end
+
+	local bx0, by0, bz0 = InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
+	local bx1, by1, bz1 = InverseLogProduct(w2, x2, y2, z2, w1, x1, y1, z1)
+
+	local mx = bx0 + bx1
+	local my = by0 + by1
+	local mz = bz0 + bz1
+
+	local n = math.sqrt(mx*mx + my*my + mz*mz)
+	local m = n > EPSILON and math.sin(n)/n or 1 + n*n*(n*n/120 - 1/6)
+
+	local ew = math.cos(n)
+	local ex = m*mx
+	local ey = m*my
+	local ez = m*mz
+
+	return ew*w1 - ex*x1 - ey*y1 - ez*z1,
+		ex*w1 + ew*x1 - ez*y1 + ey*z1,
+		ey*w1 + ez*x1 + ew*y1 - ex*z1,
+		ez*w1 - ey*x1 + ex*y1 + ew*z1
+end
+local function Slerp(s, w0, x0, y0, z0, w1, x1, y1, z1, d)
+	local t0, t1
+	if d &lt; 1 - EPSILON then
+		local d0 = y0*x1 + w0*z1 - x0*y1 - z0*w1
+		local d1 = y0*w1 - w0*y1 + z0*x1 - x0*z1
+		local d2 = y0*z1 - w0*x1 - z0*y1 + x0*w1
+		local theta = math.atan2(math.sqrt(d0^2 + d1^2 + d2^2), d)
+		local rsa = math.sqrt(1 - d*d)
+		t0, t1 = math.sin((1 - s)*theta)/rsa, math.sin(s*theta)/rsa
+	else
+		t0, t1 = 1 - s, s
+	end
+	return w0*t0 + w1*t1,
+		x0*t0 + x1*t1,
+		y0*t0 + y1*t1,
+		z0*t0 + z1*t1
+end
+local function Squad(q0, q1, q2, q3, alpha)
+	local q1w, q1x, q1y, q1z = q1[1], q1[2], q1[3], q1[4]
+	local q2w, q2x, q2y, q2z = q2[1], q2[2], q2[3], q2[4]
+
+	local p0w, p0x, p0y, p0z = GetControlRotation(
+		q0[1], q0[2], q0[3], q0[4],
+		q1w, q1x, q1y, q1z,
+		q2w, q2x, q2y, q2z
+	)
+	local p1w, p1x, p1y, p1z = GetControlRotation(
+		q1w, q1x, q1y, q1z,
+		q2w, q2x, q2y, q2z,
+		q3[1], q3[2], q3[3], q3[4]
+	)
+
+	local dq = q1w*q2w + q1x*q2x + q1y*q2y + q1z*q2z
+	local dp = math.abs(p0w*p1w + p0x*p1x + p0y*p1y + p0z*p1z)
+	if dq &lt; 0 then
+		p1w, p1x, p1y, p1z = -p1w, -p1x, -p1y, -p1z
+		q2w, q2x, q2y, q2z = -q2w, -q2x, -q2y, -q2z
+		dq = -dq
+	end
+
+	local w0, x0, y0, z0 = Slerp(alpha, q1w, q1x, q1y, q1z, q2w, q2x, q2y, q2z, dq)
+	local w1, x1, y1, z1 = Slerp(alpha, p0w, p0x, p0y, p0z, p1w, p1x, p1y, p1z, dp)
+	return Slerp(2*alpha*(1 - alpha), w0, x0, y0, z0, w1, x1, y1, z1, w0*w1 + x0*x1 + y0*y1 + z0*z1)
+end
+local function CFrameToQuaternion(cframe)
+	local _, _, _, m00, m01, m02, m10, m11, m12, m20, m21, m22 = cframe:GetComponents()
+	local trace = m00 + m11 + m22
+	if trace > 0 then
+		local s = math.sqrt(1 + trace)
+		local reciprocal = 0.5 / s
+		local quaternion = table.create(4)
+		quaternion[1] = s / 2
+		quaternion[2] = (m21 - m12) * reciprocal
+		quaternion[3] = (m02 - m20) * reciprocal
+		quaternion[4] = (m10 - m01) * reciprocal
+		return quaternion
+	else
+		local big = math.max(m00, m11, m22)
+		if big == m00 then
+			local s = math.sqrt(1 + m00 - m11 - m22)
+			local reciprocal = 0.5 / s
+			local quaternion = table.create(4)
+			quaternion[1] = (m21 - m12) * reciprocal
+			quaternion[2] = s / 2
+			quaternion[3] = (m10 + m01) * reciprocal
+			quaternion[4] = (m02 + m20) * reciprocal
+			return quaternion
+		elseif big == m11 then
+			local s = math.sqrt(1 - m00 + m11 - m22)
+			local reciprocal = 0.5 / s
+			local quaternion = table.create(4)
+			quaternion[1] = (m02 - m20) * reciprocal
+			quaternion[2] = (m10 + m01) * reciprocal
+			quaternion[3] = s / 2
+			quaternion[4] = (m21 + m12) * reciprocal
+			return quaternion
+		elseif big == m22 then
+			local s = math.sqrt(1 - m00 - m11 + m22 )
+			local reciprocal = 0.5 / s
+			local quaternion = table.create(4)
+			quaternion[1] = (m10 - m01) * reciprocal
+			quaternion[2] = (m02 + m20) * reciprocal
+			quaternion[3] = (m21 + m12) * reciprocal
+			quaternion[4] = s / 2
+			return quaternion
+		else
+			return table.create(4, nil)
+		end
+	end
+end
+
+---- Global
+function CatmullRomSpline.SetRiemannStep(riemannStep: number)
+	assert(t.numberMin(0)(riemannStep))
+	RIEMANN_STEP = riemannStep
+end
+
+---- Spline
+-- types
+type Knot = Vector2 | Vector3 | CFrame
+local tUnitInterval = t.numberConstrained(0, 1)
+local tOptionalUnitInterval = t.optional(tUnitInterval)
+local function tSplinePoints(p0, p1, p2, p3) -- checks that they are all the same point type
+	local p0Type = t[typeof(p0)]
+	assert(p0Type(p1))
+	assert(p0Type(p2))
+	assert(p0Type(p3))
+end
+
+-- methods
+function CatmullRomSpline.Spline.new(p0: Knot, p1: Knot, p2: Knot, p3: Knot, tau: number?)
+	tSplinePoints(p0, p1, p2, p3)
+	assert(tOptionalUnitInterval(tau))
+	tau = tau or 0 -- default to uniform
+
+	if typeof(p0) == "Vector3" or typeof(p0) == "Vector2" then
+		local t0 = 0
+		local t1 = (p1 - p0).Magnitude ^ tau + t0
+		local t2 = (p2 - p1).Magnitude ^ tau + t1
+		local t3 = (p3 - p2).Magnitude ^ tau + t2
+
+		local self = setmetatable({
+			ClassName = "VectorSpline",
+			p0 = p0,
+			p1 = p1,
+			p2 = p2,
+			p3 = p3,
+			t1 = t1,
+			t2 = t2,
+			t3 = t3,
+			Length = nil,
+		}, VectorSplineMetatable)
+		self.Length = self:SolveLength()
+		
+		return self
+	elseif typeof(p0) == "CFrame" then
+		local t0 = 0
+		local t1 = (p1.Position - p0.Position).Magnitude ^ tau + t0
+		local t2 = (p2.Position - p1.Position).Magnitude ^ tau + t1
+		local t3 = (p3.Position - p2.Position).Magnitude ^ tau + t2
+
+		local self = setmetatable({
+			ClassName = "CFrameSpline",
+			p0 = p0,
+			p1 = p1,
+			p2 = p2,
+			p3 = p3,
+			t1 = t1,
+			t2 = t2,
+			t3 = t3,
+			Length = nil,
+		}, CFrameSplineMetatable)
+		self.Length = self:SolveLength()
+		
+		return self
+	end
+end
+
+function VectorSplineMetatable:SolvePosition(alpha: number)
+	local p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
+	if self.ClassName == "CFrameSpline" then
+		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
+	end
+
+	local t0, t1, t2, t3 = 0, self.t1, self.t2, self.t3
+	local s = t1 + alpha * (t2 - t1) -- s instead of t because t is the typechecker :(
+
+	local a1 = (p0 * (t1 - s) + p1 * (s - t0)) / (t1 - t0)
+	local a2 = (p1 * (t2 - s) + p2 * (s - t1)) / (t2 - t1)
+	local a3 = (p2 * (t3 - s) + p3 * (s - t2)) / (t3 - t2)
+	local b1 = (a1 * (t2 - s) + a2 * (s - t0)) / (t2 - t0)
+	local b2 = (a2 * (t3 - s) + a3 * (s - t1)) / (t3 - t1)
+	local c  = (b1 * (t2 - s) + b2 * (s - t1)) / (t2 - t1)
+
+	return c
+end
+
+function VectorSplineMetatable:SolveTangent(alpha: number)
+	local p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
+	if self.ClassName == "CFrameSpline" then
+		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
+	end
+	local t0, t1, t2, t3 = 0, self.t1, self.t2, self.t3
+	local s = t1 + alpha * (t2 - t1) -- s instead of t because t is the typechecker :(
+
+	local d1 = t1 - t0 -- d for denominator
+	local d2 = t2 - t1
+	local d3 = t3 - t2
+	local d4 = t2 - t0
+	local d5 = t3 - t1
+
+	local a1 = (p0 * (t1 - s) + p1 * (s - t0)) / d1
+	local a2 = (p1 * (t2 - s) + p2 * (s - t1)) / d2
+	local a3 = (p2 * (t3 - s) + p3 * (s - t2)) / d3
+	local b1 = (a1 * (t2 - s) + a2 * (s - t0)) / d4
+	local b2 = (a2 * (t3 - s) + a3 * (s - t1)) / d5
+
+	local a1p = (p1 - p0) / d1 -- p for prime (derivative)
+	local a2p = (p2 - p1) / d2
+	local a3p = (p3 - p2) / d3
+	local b1p = (t2*a1p - t0*a2p + a2 - a1 + s*(a2p - a1p)) / d4
+	local b2p = (t3*a2p - t1*a3p + a3 - a2 + s*(a3p - a2p)) / d5
+	local cp  = (t2*b1p - t1*b2p + b2 - b1 + s*(b2p - b1p)) / d2
+
+	return cp
+end
+
+function VectorSplineMetatable:SolveCFrame(alpha: number)
+	assert(tUnitInterval(alpha))
+	local position = self:SolvePosition(alpha)
+	local tangent = self:SolveTangent(alpha)
+	return CFrame.lookAt(position, position + tangent)
+end
+
+function VectorSplineMetatable:SolveLength(a: number?, b: number?)
+	assert(tOptionalUnitInterval(a))
+	assert(tOptionalUnitInterval(b))
+	a = a or 0
+	b = b or 1
+	local length = 0
+	local lastPosition = self:SolvePosition(a)
+	for i = 1, (b - a) / RIEMANN_STEP do
+		i /= (b - a) / RIEMANN_STEP
+		local thisPosition = self:SolvePosition(a + (b - a) * i)
+		length += (thisPosition - lastPosition).Magnitude
+		--length += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
+		lastPosition = thisPosition
+		-- equivalent to (dp / dt).Magnitude * RIEMANN_STEP
+	end
+	return length
+end
+
+function VectorSplineMetatable:SolveCurvature(alpha: number)
+	assert(t.number(alpha))
+	local p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
+	if self.ClassName == "CFrameSpline" then
+		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
+	end
+	local t0, t1, t2, t3 = 0, self.t1, self.t2, self.t3
+	local s = t1 + alpha * (t2 - t1) -- s instead of t because t is the typechecker :(
+
+	local d1 = t1 - t0 -- d for denominator
+	local d2 = t2 - t1
+	local d3 = t3 - t2
+	local d4 = t2 - t0
+	local d5 = t3 - t1
+
+	local a1 = (p0 * (t1 - s) + p1 * (s - t0)) / d1
+	local a2 = (p1 * (t2 - s) + p2 * (s - t1)) / d2
+	local a3 = (p2 * (t3 - s) + p3 * (s - t2)) / d3
+	local b1 = (a1 * (t2 - s) + a2 * (s - t0)) / d4
+	local b2 = (a2 * (t3 - s) + a3 * (s - t1)) / d5
+
+	local a1p = (p1 - p0) / d1 -- p for prime (derivative)
+	local a2p = (p2 - p1) / d2
+	local a3p = (p3 - p2) / d3
+	local b1p = (t2*a1p - t0*a2p + a2 - a1 + s*(a2p - a1p)) / d4
+	local b2p = (t3*a2p - t1*a3p + a3 - a2 + s*(a3p - a2p)) / d5
+	local cp  = (t2*b1p - t1*b2p + b2 - b1 + s*(b2p - b1p)) / d2
+
+	local b1pp = 2 * (a2p - a1p) / d4 -- pp for prime prime (second derivative)
+	local b2pp = 2 * (a3p - a2p) / d5
+	local cpp  = (t2*b1pp - t1*b2pp + 2*b2p - 2*b1p + s*(b2pp - b1pp)) / d2
+
+	-- local tangent = cp.Unit
+	local tangentp = (cpp / cp.Magnitude) - (cp * cp:Dot(cpp)) / cp.Magnitude^3
+
+	return tangentp, tangentp.Magnitude / cp.Magnitude
+end
+
+function CFrameSplineMetatable:SolveRotCFrame(alpha: number)
+	assert(self.ClassName == "CFrameSpline", "Spline points must be CFrames to call SolveRotCFrame.")
+	assert(tUnitInterval(alpha))
+	local position = self:SolvePosition(alpha)
+	local tangent = self:SolveTangent(alpha)
+	local qw, qx, qy, qz = Squad(
+		CFrameToQuaternion(self.p0),
+		CFrameToQuaternion(self.p1),
+		CFrameToQuaternion(self.p2),
+		CFrameToQuaternion(self.p3),
+		alpha
+	)
+	local quaternionToCFrame = CFrame.new(0, 0, 0, qx, qy, qz, qw)
+	return CFrame.lookAt(position, position + tangent, quaternionToCFrame.UpVector)
+end
+
+---- Chain
+function CatmullRomSpline.Chain.new(points: {Knot}, tau: number?)
+	assert(#points >= 2, "At least 2 points are needed for a spline chain.")
+	assert(tOptionalUnitInterval(tau))
+	tau = tau or 0
+
+	local numPoints = #points
+	local firstPoint = points[1]
+	local lastPoint = points[numPoints]
+	local firstControlPoint, lastControlPoint
+	if typeof(firstPoint) == "Vector3" or typeof(firstPoint) == "Vector2" then
+		if firstPoint:FuzzyEq(lastPoint) then -- loops
+			firstControlPoint, lastControlPoint = points[numPoints - 1], points[2]
+		else
+			firstControlPoint = points[2]:Lerp(firstPoint, 2)
+			lastControlPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
+		end
+	elseif typeof(firstPoint) == "CFrame" then
+		if firstPoint.Position:FuzzyEq(lastPoint.Position) -- loops
+			and firstPoint.XVector:FuzzyEq(lastPoint.XVector)
+			and firstPoint.YVector:FuzzyEq(lastPoint.YVector)
+			and firstPoint.ZVector:FuzzyEq(lastPoint.ZVector) then
+			firstControlPoint, lastControlPoint = points[numPoints - 1], points[2]
+		else
+			firstControlPoint = points[2]:Lerp(firstPoint, 2)
+			lastControlPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
+		end
+	end
+
+	local splines = table.create(numPoints - 1)
+	local chainLength
+	if numPoints == 2 then
+		local firstSpline = CatmullRomSpline.Spline.new(
+			firstControlPoint,
+			points[1],
+			points[2],
+			lastControlPoint,
+			tau
+		)
+		chainLength = firstSpline.Length
+		splines[1] = firstSpline
+	else
+		local firstSpline = CatmullRomSpline.Spline.new(
+			firstControlPoint,
+			points[1],
+			points[2],
+			points[3],
+			tau
+		)
+		local lastSpline = CatmullRomSpline.Spline.new(
+			points[numPoints - 2],
+			points[numPoints - 1],
+			lastPoint,
+			lastControlPoint,
+			tau
+		)
+		chainLength = firstSpline.Length + lastSpline.Length
+		splines[1] = firstSpline
+		splines[numPoints - 1] = lastSpline
+		for i = 1, numPoints - 3 do
+			local spline = CatmullRomSpline.Spline.new(
+				points[i],
+				points[i + 1],
+				points[i + 2],
+				points[i + 3],
+				tau
+			)
+			splines[i + 1] = spline
+			chainLength += spline.Length
+		end
+	end
+
+	local splineIntervals = table.create(numPoints - 1)
+	local splineFromAlphaCache = table.create(100)
+	local runningChainLength = 0
+	for i, spline in ipairs(splines) do
+		local intervalStart = runningChainLength / chainLength
+		runningChainLength += spline.Length
+		local intervalEnd = runningChainLength / chainLength
+		splineIntervals[i] = {Start = intervalStart, End = intervalEnd}
+		local endAlpha = math.floor(intervalEnd * 100) - math.ceil(intervalStart * 100)
+		for alpha = 0, endAlpha do
+			local newAlpha = math.ceil(intervalStart * 100) / 100 + alpha / 100
+			splineFromAlphaCache[string.format("%.2f", newAlpha)] = i
+		end
+	end
+
+	return setmetatable({
+		ClassName = splines[1].ClassName .. "Chain",
+		Length = chainLength,
+		Points = points,
+		Splines = splines,
+		SplineFromAlphaCache = splineFromAlphaCache,
+		SplineIntervals = splineIntervals
+	}, CatmullRomSpline.Chain)
+end
+
+-- internal methods
+function CatmullRomSpline.Chain:_GetSplineFromAlpha(alpha)
+	local startAlpha = math.floor(alpha * 100) / 100
+	local startInterval = self.SplineFromAlphaCache[string.format("%.2f", startAlpha)]
+	local numIntervals = #self.SplineIntervals
+	for i = startInterval, numIntervals do
+		local splineInterval = self.SplineIntervals[i]
+		if alpha >= splineInterval.Start and alpha &lt;= splineInterval.End then
+			local splineAlpha =
+				(alpha - splineInterval.Start) / (splineInterval.End - splineInterval.Start)
+			return self.Splines[i], splineAlpha, splineInterval
+		end
+	end
+end
+function CatmullRomSpline.Chain:_GetArcLengthAlpha(alpha)
+	if alpha == 0 or alpha == 1 then return alpha end
+
+	local length = self.Length
+	local spline, _, splineInterval = self:_GetSplineFromAlpha(alpha)
+	local goalLength = length * alpha
+	local runningLength = length * splineInterval.Start
+	local lastPosition = spline:SolvePosition(0)
+
+	for i = 1, 1 / RIEMANN_STEP do
+		i *= RIEMANN_STEP
+		local thisPosition = spline:SolvePosition(i)
+		runningLength += (thisPosition - lastPosition).Magnitude
+		--runningLength += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
+		--runningLength += (dp / DT).Magnitude * RIEMANN_STEP
+		lastPosition = thisPosition
+		if runningLength >= goalLength then
+			return splineInterval.Start + i * (splineInterval.End - splineInterval.Start)
+		end
+	end
+end
+
+-- methods
+function CatmullRomSpline.Chain:GetPosition(alpha: number)
+	assert(tUnitInterval(alpha))
+	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
+	return spline:SolvePosition(splineAlpha)
+end
+function CatmullRomSpline.Chain:GetCFrame(alpha: number)
+	assert(tUnitInterval(alpha))
+	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
+	return spline:SolveCFrame(splineAlpha)
+end
+function CatmullRomSpline.Chain:GetRotCFrame(alpha: number)
+	assert(tUnitInterval(alpha))
+	assert(self.ClassName == "CFrameSplineChain",
+		"Spline chain points must be CFrames to call GetRotCFrame.")
+	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
+	return spline:SolveRotCFrame(splineAlpha)
+end
+function CatmullRomSpline.Chain:GetCurvature(alpha: number)
+	assert(tUnitInterval(alpha))
+	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
+	return spline:SolveCurvature(splineAlpha)
+end
+function CatmullRomSpline.Chain:GetArcPosition(alpha: number)
+	assert(tUnitInterval(alpha))
+	return self:GetPosition(self:_GetArcLengthAlpha(alpha))
+end
+function CatmullRomSpline.Chain:GetArcCFrame(alpha: number)
+	assert(tUnitInterval(alpha))
+	return self:GetCFrame(self:_GetArcLengthAlpha(alpha))
+end
+function CatmullRomSpline.Chain:GetArcRotCFrame(alpha: number)
+	assert(tUnitInterval(alpha))
+	assert(self.ClassName == "CFrameSplineChain",
+		"Spline chain points must be CFrames to call GetArcRotCFrame.")
+	return self:GetRotCFrame(self:_GetArcLengthAlpha(alpha))
+end
+function CatmullRomSpline.Chain:GetArcCurvature(alpha: number)
+	assert(tUnitInterval(alpha))
+	return self:GetCurvature(self:_GetArcLengthAlpha(alpha))
+end
+
+return CatmullRomSpline</string>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="2">
+      <Properties>
+        <string name="Name">TestEZ</string>
+        <string name="Source">local Expectation = require(script.Expectation)
+local TestBootstrap = require(script.TestBootstrap)
+local TestEnum = require(script.TestEnum)
+local TestPlan = require(script.TestPlan)
+local TestPlanner = require(script.TestPlanner)
+local TestResults = require(script.TestResults)
+local TestRunner = require(script.TestRunner)
+local TestSession = require(script.TestSession)
+local TextReporter = require(script.Reporters.TextReporter)
+local TextReporterQuiet = require(script.Reporters.TextReporterQuiet)
+local TeamCityReporter = require(script.Reporters.TeamCityReporter)
+
+local function run(testRoot, callback)
+	local modules = TestBootstrap:getModules(testRoot)
+	local plan = TestPlanner.createPlan(modules)
+	local results = TestRunner.runPlan(plan)
+
+	callback(results)
+end
+
+local TestEZ = {
+	run = run,
+
+	Expectation = Expectation,
+	TestBootstrap = TestBootstrap,
+	TestEnum = TestEnum,
+	TestPlan = TestPlan,
+	TestPlanner = TestPlanner,
+	TestResults = TestResults,
+	TestRunner = TestRunner,
+	TestSession = TestSession,
+
+	Reporters = {
+		TextReporter = TextReporter,
+		TextReporterQuiet = TextReporterQuiet,
+		TeamCityReporter = TeamCityReporter,
+	},
+}
+
+return TestEZ</string>
+      </Properties>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">Context</string>
+          <string name="Source"><![CDATA[--[[
+	The Context object implements a write-once key-value store. It also allows
+	for a new Context object to inherit the entries from an existing one.
+]]
+local Context = {}
+
+function Context.new(parent)
+	local meta = {}
+	local index = {}
+	meta.__index = index
+
+	if parent then
+		for key, value in pairs(getmetatable(parent).__index) do
+			index[key] = value
+		end
+	end
+
+	function meta.__newindex(_obj, key, value)
+		assert(index[key] == nil, string.format("Cannot reassign %s in context", tostring(key)))
+		index[key] = value
+	end
+
+	return setmetatable({}, meta)
+end
+
+return Context
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">Expectation</string>
+          <string name="Source"><![CDATA[--[[
+	Allows creation of expectation statements designed for behavior-driven
+	testing (BDD). See Chai (JS) or RSpec (Ruby) for examples of other BDD
+	frameworks.
+
+	The Expectation class is exposed to tests as a function called `expect`:
+
+		expect(5).to.equal(5)
+		expect(foo()).to.be.ok()
+
+	Expectations can be negated using .never:
+
+		expect(true).never.to.equal(false)
+
+	Expectations throw errors when their conditions are not met.
+]]
+
+local Expectation = {}
+
+--[[
+	These keys don't do anything except make expectations read more cleanly
+]]
+local SELF_KEYS = {
+	to = true,
+	be = true,
+	been = true,
+	have = true,
+	was = true,
+	at = true,
+}
+
+--[[
+	These keys invert the condition expressed by the Expectation.
+]]
+local NEGATION_KEYS = {
+	never = true,
+}
+
+--[[
+	Extension of Lua's 'assert' that lets you specify an error level.
+]]
+local function assertLevel(condition, message, level)
+	message = message or "Assertion failed!"
+	level = level or 1
+
+	if not condition then
+		error(message, level + 1)
+	end
+end
+
+--[[
+	Returns a version of the given method that can be called with either . or :
+]]
+local function bindSelf(self, method)
+	return function(firstArg, ...)
+		if firstArg == self then
+			return method(self, ...)
+		else
+			return method(self, firstArg, ...)
+		end
+	end
+end
+
+local function formatMessage(result, trueMessage, falseMessage)
+	if result then
+		return trueMessage
+	else
+		return falseMessage
+	end
+end
+
+--[[
+	Create a new expectation
+]]
+function Expectation.new(value)
+	local self = {
+		value = value,
+		successCondition = true,
+		condition = false,
+		matchers = {},
+		_boundMatchers = {},
+	}
+
+	setmetatable(self, Expectation)
+
+	self.a = bindSelf(self, self.a)
+	self.an = self.a
+	self.ok = bindSelf(self, self.ok)
+	self.equal = bindSelf(self, self.equal)
+	self.throw = bindSelf(self, self.throw)
+	self.near = bindSelf(self, self.near)
+
+	return self
+end
+
+function Expectation.checkMatcherNameCollisions(name)
+	if SELF_KEYS[name] or NEGATION_KEYS[name] or Expectation[name] then
+		return false
+	end
+
+	return true
+end
+
+function Expectation:extend(matchers)
+	self.matchers = matchers or {}
+
+	for name, implementation in pairs(self.matchers) do
+		self._boundMatchers[name] = bindSelf(self, function(_self, ...)
+			local result = implementation(self.value, ...)
+			local pass = result.pass == self.successCondition
+
+			assertLevel(pass, result.message, 3)
+			self:_resetModifiers()
+			return self
+		end)
+	end
+
+	return self
+end
+
+function Expectation.__index(self, key)
+	-- Keys that don't do anything except improve readability
+	if SELF_KEYS[key] then
+		return self
+	end
+
+	-- Invert your assertion
+	if NEGATION_KEYS[key] then
+		local newExpectation = Expectation.new(self.value):extend(self.matchers)
+		newExpectation.successCondition = not self.successCondition
+
+		return newExpectation
+	end
+
+	if self._boundMatchers[key] then
+		return self._boundMatchers[key]
+	end
+
+	-- Fall back to methods provided by Expectation
+	return Expectation[key]
+end
+
+--[[
+	Called by expectation terminators to reset modifiers in a statement.
+
+	This makes chains like:
+
+		expect(5)
+			.never.to.equal(6)
+			.to.equal(5)
+
+	Work as expected.
+]]
+function Expectation:_resetModifiers()
+	self.successCondition = true
+end
+
+--[[
+	Assert that the expectation value is the given type.
+
+	expect(5).to.be.a("number")
+]]
+function Expectation:a(typeName)
+	local result = (type(self.value) == typeName) == self.successCondition
+
+	local message = formatMessage(self.successCondition,
+		("Expected value of type %q, got value %q of type %s"):format(
+			typeName,
+			tostring(self.value),
+			type(self.value)
+		),
+		("Expected value not of type %q, got value %q of type %s"):format(
+			typeName,
+			tostring(self.value),
+			type(self.value)
+		)
+	)
+
+	assertLevel(result, message, 3)
+	self:_resetModifiers()
+
+	return self
+end
+
+-- Make alias public on class
+Expectation.an = Expectation.a
+
+--[[
+	Assert that our expectation value is truthy
+]]
+function Expectation:ok()
+	local result = (self.value ~= nil) == self.successCondition
+
+	local message = formatMessage(self.successCondition,
+		("Expected value %q to be non-nil"):format(
+			tostring(self.value)
+		),
+		("Expected value %q to be nil"):format(
+			tostring(self.value)
+		)
+	)
+
+	assertLevel(result, message, 3)
+	self:_resetModifiers()
+
+	return self
+end
+
+--[[
+	Assert that our expectation value is equal to another value
+]]
+function Expectation:equal(otherValue)
+	local result = (self.value == otherValue) == self.successCondition
+
+	local message = formatMessage(self.successCondition,
+		("Expected value %q (%s), got %q (%s) instead"):format(
+			tostring(otherValue),
+			type(otherValue),
+			tostring(self.value),
+			type(self.value)
+		),
+		("Expected anything but value %q (%s)"):format(
+			tostring(otherValue),
+			type(otherValue)
+		)
+	)
+
+	assertLevel(result, message, 3)
+	self:_resetModifiers()
+
+	return self
+end
+
+--[[
+	Assert that our expectation value is equal to another value within some
+	inclusive limit.
+]]
+function Expectation:near(otherValue, limit)
+	assert(type(self.value) == "number", "Expectation value must be a number to use 'near'")
+	assert(type(otherValue) == "number", "otherValue must be a number")
+	assert(type(limit) == "number" or limit == nil, "limit must be a number or nil")
+
+	limit = limit or 1e-7
+
+	local result = (math.abs(self.value - otherValue) <= limit) == self.successCondition
+
+	local message = formatMessage(self.successCondition,
+		("Expected value to be near %f (within %f) but got %f instead"):format(
+			otherValue,
+			limit,
+			self.value
+		),
+		("Expected value to not be near %f (within %f) but got %f instead"):format(
+			otherValue,
+			limit,
+			self.value
+		)
+	)
+
+	assertLevel(result, message, 3)
+	self:_resetModifiers()
+
+	return self
+end
+
+--[[
+	Assert that our functoid expectation value throws an error when called.
+	An optional error message can be passed to assert that the error message
+	contains the given value.
+]]
+function Expectation:throw(messageSubstring)
+	local ok, err = pcall(self.value)
+	local result = ok ~= self.successCondition
+
+	if messageSubstring and not ok then
+		if self.successCondition then
+			result = err:find(messageSubstring, 1, true) ~= nil
+		else
+			result = err:find(messageSubstring, 1, true) == nil
+		end
+	end
+
+	local message
+
+	if messageSubstring then
+		message = formatMessage(self.successCondition,
+			("Expected function to throw an error containing %q, but it %s"):format(
+				messageSubstring,
+				err and ("threw: %s"):format(err) or "did not throw."
+			),
+			("Expected function to never throw an error containing %q, but it threw: %s"):format(
+				messageSubstring,
+				tostring(err)
+			)
+		)
+	else
+		message = formatMessage(self.successCondition,
+			"Expected function to throw an error, but it did not throw.",
+			("Expected function to succeed, but it threw an error: %s"):format(
+				tostring(err)
+			)
+		)
+	end
+
+	assertLevel(result, message, 3)
+	self:_resetModifiers()
+
+	return self
+end
+
+return Expectation
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">ExpectationContext</string>
+          <string name="Source"><![CDATA[local Expectation = require(script.Parent.Expectation)
+local checkMatcherNameCollisions = Expectation.checkMatcherNameCollisions
+
+local function copy(t)
+	local result = {}
+
+	for key, value in pairs(t) do
+		result[key] = value
+	end
+
+	return result
+end
+
+local ExpectationContext = {}
+ExpectationContext.__index = ExpectationContext
+
+function ExpectationContext.new(parent)
+	local self = {
+		_extensions = parent and copy(parent._extensions) or {},
+	}
+
+	return setmetatable(self, ExpectationContext)
+end
+
+function ExpectationContext:startExpectationChain(...)
+	return Expectation.new(...):extend(self._extensions)
+end
+
+function ExpectationContext:extend(config)
+	for key, value in pairs(config) do
+		assert(self._extensions[key] == nil, string.format("Cannot reassign %q in expect.extend", key))
+		assert(checkMatcherNameCollisions(key), string.format("Cannot overwrite matcher %q; it already exists", key))
+
+		self._extensions[key] = value
+	end
+end
+
+return ExpectationContext
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">LifecycleHooks</string>
+          <string name="Source"><![CDATA[local TestEnum = require(script.Parent.TestEnum)
+
+local LifecycleHooks = {}
+LifecycleHooks.__index = LifecycleHooks
+
+function LifecycleHooks.new()
+	local self = {
+		_stack = {},
+	}
+	return setmetatable(self, LifecycleHooks)
+end
+
+--[[
+	Returns an array of `beforeEach` hooks in FIFO order
+]]
+function LifecycleHooks:getBeforeEachHooks()
+	local key = TestEnum.NodeType.BeforeEach
+	local hooks = {}
+
+	for _, level in ipairs(self._stack) do
+		for _, hook in ipairs(level[key]) do
+			table.insert(hooks, hook)
+		end
+	end
+
+	return hooks
+end
+
+--[[
+	Returns an array of `afterEach` hooks in FILO order
+]]
+function LifecycleHooks:getAfterEachHooks()
+	local key = TestEnum.NodeType.AfterEach
+	local hooks = {}
+
+	for _, level in ipairs(self._stack) do
+		for _, hook in ipairs(level[key]) do
+			table.insert(hooks, 1, hook)
+		end
+	end
+
+	return hooks
+end
+
+--[[
+	Pushes uncalled beforeAll and afterAll hooks back up the stack
+]]
+function LifecycleHooks:popHooks()
+	table.remove(self._stack, #self._stack)
+end
+
+function LifecycleHooks:pushHooksFrom(planNode)
+	assert(planNode ~= nil)
+
+	table.insert(self._stack, {
+		[TestEnum.NodeType.BeforeAll] = self:_getHooksOfType(planNode.children, TestEnum.NodeType.BeforeAll),
+		[TestEnum.NodeType.AfterAll] = self:_getHooksOfType(planNode.children, TestEnum.NodeType.AfterAll),
+		[TestEnum.NodeType.BeforeEach] = self:_getHooksOfType(planNode.children, TestEnum.NodeType.BeforeEach),
+		[TestEnum.NodeType.AfterEach] = self:_getHooksOfType(planNode.children, TestEnum.NodeType.AfterEach),
+	})
+end
+
+--[[
+	Get the beforeAll hooks from the current level.
+]]
+function LifecycleHooks:getBeforeAllHooks()
+	return self._stack[#self._stack][TestEnum.NodeType.BeforeAll]
+end
+
+--[[
+	Get the afterAll hooks from the current level.
+]]
+function LifecycleHooks:getAfterAllHooks()
+	return self._stack[#self._stack][TestEnum.NodeType.AfterAll]
+end
+
+function LifecycleHooks:_getHooksOfType(nodes, key)
+	local hooks = {}
+
+	for _, node in ipairs(nodes) do
+		if node.type == key then
+			table.insert(hooks, node.callback)
+		end
+	end
+
+	return hooks
+end
+
+return LifecycleHooks
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="7">
+        <Properties>
+          <string name="Name">Reporters</string>
+        </Properties>
+        <Item class="ModuleScript" referent="8">
+          <Properties>
+            <string name="Name">TeamCityReporter</string>
+            <string name="Source">local TestService = game:GetService("TestService")
+
+local TestEnum = require(script.Parent.Parent.TestEnum)
+
+local TeamCityReporter = {}
+
+local function teamCityEscape(str)
+	str = string.gsub(str, "([]|'[])","|%1")
+	str = string.gsub(str, "\r", "|r")
+	str = string.gsub(str, "\n", "|n")
+	return str
+end
+
+local function teamCityEnterSuite(suiteName)
+	return string.format("##teamcity[testSuiteStarted name='%s']", teamCityEscape(suiteName))
+end
+
+local function teamCityLeaveSuite(suiteName)
+	return string.format("##teamcity[testSuiteFinished name='%s']", teamCityEscape(suiteName))
+end
+
+local function teamCityEnterCase(caseName)
+	return string.format("##teamcity[testStarted name='%s']", teamCityEscape(caseName))
+end
+
+local function teamCityLeaveCase(caseName)
+	return string.format("##teamcity[testFinished name='%s']", teamCityEscape(caseName))
+end
+
+local function teamCityFailCase(caseName, errorMessage)
+	return string.format("##teamcity[testFailed name='%s' message='%s']",
+		teamCityEscape(caseName), teamCityEscape(errorMessage))
+end
+
+local function reportNode(node, buffer, level)
+	buffer = buffer or {}
+	level = level or 0
+	if node.status == TestEnum.TestStatus.Skipped then
+		return buffer
+	end
+	if node.planNode.type == TestEnum.NodeType.Describe then
+		table.insert(buffer, teamCityEnterSuite(node.planNode.phrase))
+		for _, child in ipairs(node.children) do
+			reportNode(child, buffer, level + 1)
+		end
+		table.insert(buffer, teamCityLeaveSuite(node.planNode.phrase))
+	else
+		table.insert(buffer, teamCityEnterCase(node.planNode.phrase))
+		if node.status == TestEnum.TestStatus.Failure then
+			table.insert(buffer, teamCityFailCase(node.planNode.phrase, table.concat(node.errors,"\n")))
+		end
+		table.insert(buffer, teamCityLeaveCase(node.planNode.phrase))
+	end
+end
+
+local function reportRoot(node)
+	local buffer = {}
+
+	for _, child in ipairs(node.children) do
+		reportNode(child, buffer, 0)
+	end
+
+	return buffer
+end
+
+local function report(root)
+	local buffer = reportRoot(root)
+
+	return table.concat(buffer, "\n")
+end
+
+function TeamCityReporter.report(results)
+	local resultBuffer = {
+		"Test results:",
+		report(results),
+		("%d passed, %d failed, %d skipped"):format(
+			results.successCount,
+			results.failureCount,
+			results.skippedCount
+		)
+	}
+
+	print(table.concat(resultBuffer, "\n"))
+
+	if results.failureCount > 0 then
+		print(("%d test nodes reported failures."):format(results.failureCount))
+	end
+
+	if #results.errors > 0 then
+		print("Errors reported by tests:")
+		print("")
+
+		for _, message in ipairs(results.errors) do
+			TestService:Error(message)
+
+			-- Insert a blank line after each error
+			print("")
+		end
+	end
+end
+
+return TeamCityReporter</string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="9">
+          <Properties>
+            <string name="Name">TextReporter</string>
+            <string name="Source">--[[
+	The TextReporter uses the results from a completed test to output text to
+	standard output and TestService.
+]]
+
+local TestService = game:GetService("TestService")
+
+local TestEnum = require(script.Parent.Parent.TestEnum)
+
+local INDENT = (" "):rep(3)
+local STATUS_SYMBOLS = {
+	[TestEnum.TestStatus.Success] = "+",
+	[TestEnum.TestStatus.Failure] = "-",
+	[TestEnum.TestStatus.Skipped] = "~"
+}
+local UNKNOWN_STATUS_SYMBOL = "?"
+
+local TextReporter = {}
+
+local function compareNodes(a, b)
+	return a.planNode.phrase:lower() &lt; b.planNode.phrase:lower()
+end
+
+local function reportNode(node, buffer, level)
+	buffer = buffer or {}
+	level = level or 0
+
+	if node.status == TestEnum.TestStatus.Skipped then
+		return buffer
+	end
+
+	local line
+
+	if node.status then
+		local symbol = STATUS_SYMBOLS[node.status] or UNKNOWN_STATUS_SYMBOL
+
+		line = ("%s[%s] %s"):format(
+			INDENT:rep(level),
+			symbol,
+			node.planNode.phrase
+		)
+	else
+		line = ("%s%s"):format(
+			INDENT:rep(level),
+			node.planNode.phrase
+		)
+	end
+
+	table.insert(buffer, line)
+	table.sort(node.children, compareNodes)
+
+	for _, child in ipairs(node.children) do
+		reportNode(child, buffer, level + 1)
+	end
+
+	return buffer
+end
+
+local function reportRoot(node)
+	local buffer = {}
+	table.sort(node.children, compareNodes)
+
+	for _, child in ipairs(node.children) do
+		reportNode(child, buffer, 0)
+	end
+
+	return buffer
+end
+
+local function report(root)
+	local buffer = reportRoot(root)
+
+	return table.concat(buffer, "\n")
+end
+
+function TextReporter.report(results)
+	local resultBuffer = {
+		"Test results:",
+		report(results),
+		("%d passed, %d failed, %d skipped"):format(
+			results.successCount,
+			results.failureCount,
+			results.skippedCount
+		)
+	}
+
+	print(table.concat(resultBuffer, "\n"))
+
+	if results.failureCount > 0 then
+		print(("%d test nodes reported failures."):format(results.failureCount))
+	end
+
+	if #results.errors > 0 then
+		print("Errors reported by tests:")
+		print("")
+
+		for _, message in ipairs(results.errors) do
+			TestService:Error(message)
+
+			-- Insert a blank line after each error
+			print("")
+		end
+	end
+end
+
+return TextReporter</string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="10">
+          <Properties>
+            <string name="Name">TextReporterQuiet</string>
+            <string name="Source">--[[
+	Copy of TextReporter that doesn't output successful tests.
+
+	This should be temporary, it's just a workaround to make CI environments
+	happy in the short-term.
+]]
+
+local TestService = game:GetService("TestService")
+
+local TestEnum = require(script.Parent.Parent.TestEnum)
+
+local INDENT = (" "):rep(3)
+local STATUS_SYMBOLS = {
+	[TestEnum.TestStatus.Success] = "+",
+	[TestEnum.TestStatus.Failure] = "-",
+	[TestEnum.TestStatus.Skipped] = "~"
+}
+local UNKNOWN_STATUS_SYMBOL = "?"
+
+local TextReporterQuiet = {}
+
+local function reportNode(node, buffer, level)
+	buffer = buffer or {}
+	level = level or 0
+
+	if node.status == TestEnum.TestStatus.Skipped then
+		return buffer
+	end
+
+	local line
+
+	if node.status ~= TestEnum.TestStatus.Success then
+		local symbol = STATUS_SYMBOLS[node.status] or UNKNOWN_STATUS_SYMBOL
+
+		line = ("%s[%s] %s"):format(
+			INDENT:rep(level),
+			symbol,
+			node.planNode.phrase
+		)
+	end
+
+	table.insert(buffer, line)
+
+	for _, child in ipairs(node.children) do
+		reportNode(child, buffer, level + 1)
+	end
+
+	return buffer
+end
+
+local function reportRoot(node)
+	local buffer = {}
+
+	for _, child in ipairs(node.children) do
+		reportNode(child, buffer, 0)
+	end
+
+	return buffer
+end
+
+local function report(root)
+	local buffer = reportRoot(root)
+
+	return table.concat(buffer, "\n")
+end
+
+function TextReporterQuiet.report(results)
+	local resultBuffer = {
+		"Test results:",
+		report(results),
+		("%d passed, %d failed, %d skipped"):format(
+			results.successCount,
+			results.failureCount,
+			results.skippedCount
+		)
+	}
+
+	print(table.concat(resultBuffer, "\n"))
+
+	if results.failureCount > 0 then
+		print(("%d test nodes reported failures."):format(results.failureCount))
+	end
+
+	if #results.errors > 0 then
+		print("Errors reported by tests:")
+		print("")
+
+		for _, message in ipairs(results.errors) do
+			TestService:Error(message)
+
+			-- Insert a blank line after each error
+			print("")
+		end
+	end
+end
+
+return TextReporterQuiet</string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="ModuleScript" referent="11">
+        <Properties>
+          <string name="Name">TestBootstrap</string>
+          <string name="Source">--[[
+	Provides an interface to quickly run and report tests from a given object.
+]]
+
+local TestPlanner = require(script.Parent.TestPlanner)
+local TestRunner = require(script.Parent.TestRunner)
+local TextReporter = require(script.Parent.Reporters.TextReporter)
+
+local TestBootstrap = {}
+
+local function stripSpecSuffix(name)
+	return (name:gsub("%.spec$", ""))
+end
+local function isSpecScript(aScript)
+	return aScript:IsA("ModuleScript") and aScript.Name:match("%.spec$")
+end
+
+local function getPath(module, root)
+	root = root or game
+
+	local path = {}
+	local last = module
+
+	if last.Name == "init.spec" then
+		-- Use the directory's node for init.spec files.
+		last = last.Parent
+	end
+
+	while last ~= nil and last ~= root do
+		table.insert(path, stripSpecSuffix(last.Name))
+		last = last.Parent
+	end
+	table.insert(path, stripSpecSuffix(root.Name))
+
+	return path
+end
+
+local function toStringPath(tablePath)
+	local stringPath = ""
+	local first = true
+	for _, element in ipairs(tablePath) do
+		if first then
+			stringPath = element
+			first = false
+		else
+			stringPath = element .. " " .. stringPath
+		end
+	end
+	return stringPath
+end
+
+function TestBootstrap:getModulesImpl(root, modules, current)
+	modules = modules or {}
+	current = current or root
+
+	if isSpecScript(current) then
+		local method = require(current)
+		local path = getPath(current, root)
+		local pathString = toStringPath(path)
+
+		table.insert(modules, {
+			method = method,
+			path = path,
+			pathStringForSorting = pathString:lower()
+		})
+	end
+end
+
+--[[
+	Find all the ModuleScripts in this tree that are tests.
+]]
+function TestBootstrap:getModules(root)
+	local modules = {}
+
+	self:getModulesImpl(root, modules)
+
+	for _, child in ipairs(root:GetDescendants()) do
+		self:getModulesImpl(root, modules, child)
+	end
+
+	return modules
+end
+
+--[[
+	Runs all test and reports the results using the given test reporter.
+
+	If no reporter is specified, a reasonable default is provided.
+
+	This function demonstrates the expected workflow with this testing system:
+	1. Locate test modules
+	2. Generate test plan
+	3. Run test plan
+	4. Report test results
+
+	This means we could hypothetically present a GUI to the developer that shows
+	the test plan before we execute it, allowing them to toggle specific tests
+	before they're run, but after they've been identified!
+]]
+function TestBootstrap:run(roots, reporter, otherOptions)
+	reporter = reporter or TextReporter
+
+	otherOptions = otherOptions or {}
+	local showTimingInfo = otherOptions["showTimingInfo"] or false
+	local testNamePattern = otherOptions["testNamePattern"]
+	local extraEnvironment = otherOptions["extraEnvironment"] or {}
+
+	if type(roots) ~= "table" then
+		error(("Bad argument #1 to TestBootstrap:run. Expected table, got %s"):format(typeof(roots)), 2)
+	end
+
+	local startTime = tick()
+
+	local modules = {}
+	for _, subRoot in ipairs(roots) do
+		local newModules = self:getModules(subRoot)
+
+		for _, newModule in ipairs(newModules) do
+			table.insert(modules, newModule)
+		end
+	end
+
+	local afterModules = tick()
+
+	local plan = TestPlanner.createPlan(modules, testNamePattern, extraEnvironment)
+	local afterPlan = tick()
+
+	local results = TestRunner.runPlan(plan)
+	local afterRun = tick()
+
+	reporter.report(results)
+	local afterReport = tick()
+
+	if showTimingInfo then
+		local timing = {
+			("Took %f seconds to locate test modules"):format(afterModules - startTime),
+			("Took %f seconds to create test plan"):format(afterPlan - afterModules),
+			("Took %f seconds to run tests"):format(afterRun - afterPlan),
+			("Took %f seconds to report tests"):format(afterReport - afterRun),
+		}
+
+		print(table.concat(timing, "\n"))
+	end
+
+	return results
+end
+
+return TestBootstrap</string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">TestEnum</string>
+          <string name="Source">--[[
+	Constants used throughout the testing framework.
+]]
+
+local TestEnum = {}
+
+TestEnum.TestStatus = {
+	Success = "Success",
+	Failure = "Failure",
+	Skipped = "Skipped"
+}
+
+TestEnum.NodeType = {
+	Describe = "Describe",
+	It = "It",
+	BeforeAll = "BeforeAll",
+	AfterAll = "AfterAll",
+	BeforeEach = "BeforeEach",
+	AfterEach = "AfterEach"
+}
+
+TestEnum.NodeModifier = {
+	None = "None",
+	Skip = "Skip",
+	Focus = "Focus"
+}
+
+return TestEnum</string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">TestPlan</string>
+          <string name="Source"><![CDATA[--[[
+	Represents a tree of tests that have been loaded but not necessarily
+	executed yet.
+
+	TestPlan objects are produced by TestPlanner.
+]]
+
+local TestEnum = require(script.Parent.TestEnum)
+local Expectation = require(script.Parent.Expectation)
+
+local function newEnvironment(currentNode, extraEnvironment)
+	local env = {}
+
+	if extraEnvironment then
+		if type(extraEnvironment) ~= "table" then
+			error(("Bad argument #2 to newEnvironment. Expected table, got %s"):format(
+				typeof(extraEnvironment)), 2)
+		end
+
+		for key, value in pairs(extraEnvironment) do
+			env[key] = value
+		end
+	end
+
+	local function addChild(phrase, callback, nodeType, nodeModifier)
+		local node = currentNode:addChild(phrase, nodeType, nodeModifier)
+		node.callback = callback
+		if nodeType == TestEnum.NodeType.Describe then
+			node:expand()
+		end
+		return node
+	end
+
+	function env.describeFOCUS(phrase, callback)
+		addChild(phrase, callback, TestEnum.NodeType.Describe, TestEnum.NodeModifier.Focus)
+	end
+
+	function env.describeSKIP(phrase, callback)
+		addChild(phrase, callback, TestEnum.NodeType.Describe, TestEnum.NodeModifier.Skip)
+	end
+
+	function env.describe(phrase, callback, nodeModifier)
+		addChild(phrase, callback, TestEnum.NodeType.Describe, TestEnum.NodeModifier.None)
+	end
+
+	function env.itFOCUS(phrase, callback)
+		addChild(phrase, callback, TestEnum.NodeType.It, TestEnum.NodeModifier.Focus)
+	end
+
+	function env.itSKIP(phrase, callback)
+		addChild(phrase, callback, TestEnum.NodeType.It, TestEnum.NodeModifier.Skip)
+	end
+
+	function env.itFIXME(phrase, callback)
+		local node = addChild(phrase, callback, TestEnum.NodeType.It, TestEnum.NodeModifier.Skip)
+		warn("FIXME: broken test", node:getFullName())
+	end
+
+	function env.it(phrase, callback, nodeModifier)
+		addChild(phrase, callback, TestEnum.NodeType.It, TestEnum.NodeModifier.None)
+	end
+
+	-- Incrementing counter used to ensure that beforeAll, afterAll, beforeEach, afterEach have unique phrases
+	local lifecyclePhaseId = 0
+
+	local lifecycleHooks = {
+		[TestEnum.NodeType.BeforeAll] = "beforeAll",
+		[TestEnum.NodeType.AfterAll] = "afterAll",
+		[TestEnum.NodeType.BeforeEach] = "beforeEach",
+		[TestEnum.NodeType.AfterEach] = "afterEach"
+	}
+
+	for nodeType, name in pairs(lifecycleHooks) do
+		env[name] = function(callback)
+			addChild(name .. "_" .. tostring(lifecyclePhaseId), callback, nodeType, TestEnum.NodeModifier.None)
+			lifecyclePhaseId = lifecyclePhaseId + 1
+		end
+	end
+
+	function env.FIXME(optionalMessage)
+		warn("FIXME: broken test", currentNode:getFullName(), optionalMessage or "")
+
+		currentNode.modifier = TestEnum.NodeModifier.Skip
+	end
+
+	function env.FOCUS()
+		currentNode.modifier = TestEnum.NodeModifier.Focus
+	end
+
+	function env.SKIP()
+		currentNode.modifier = TestEnum.NodeModifier.Skip
+	end
+
+	--[[
+		This function is deprecated. Calling it is a no-op beyond generating a
+		warning.
+	]]
+	function env.HACK_NO_XPCALL()
+		warn("HACK_NO_XPCALL is deprecated. It is now safe to yield in an " ..
+			"xpcall, so this is no longer necessary. It can be safely deleted.")
+	end
+
+	env.fit = env.itFOCUS
+	env.xit = env.itSKIP
+	env.fdescribe = env.describeFOCUS
+	env.xdescribe = env.describeSKIP
+
+	env.expect = setmetatable({
+		extend = function(...)
+			error("Cannot call \"expect.extend\" from within a \"describe\" node.")
+		end,
+	}, {
+		__call = function(_self, ...)
+			return Expectation.new(...)
+		end,
+	})
+
+	return env
+end
+
+local TestNode = {}
+TestNode.__index = TestNode
+
+--[[
+	Create a new test node. A pointer to the test plan, a phrase to describe it
+	and the type of node it is are required. The modifier is optional and will
+	be None if left blank.
+]]
+function TestNode.new(plan, phrase, nodeType, nodeModifier)
+	nodeModifier = nodeModifier or TestEnum.NodeModifier.None
+
+	local node = {
+		plan = plan,
+		phrase = phrase,
+		type = nodeType,
+		modifier = nodeModifier,
+		children = {},
+		callback = nil,
+		parent = nil,
+	}
+
+	node.environment = newEnvironment(node, plan.extraEnvironment)
+	return setmetatable(node, TestNode)
+end
+
+local function getModifier(name, pattern, modifier)
+	if pattern and (modifier == nil or modifier == TestEnum.NodeModifier.None) then
+		if name:match(pattern) then
+			return TestEnum.NodeModifier.Focus
+		else
+			return TestEnum.NodeModifier.Skip
+		end
+	end
+	return modifier
+end
+
+function TestNode:addChild(phrase, nodeType, nodeModifier)
+	if nodeType == TestEnum.NodeType.It then
+		for _, child in pairs(self.children) do
+			if child.phrase == phrase then
+				error("Duplicate it block found: " .. child:getFullName())
+			end
+		end
+	end
+
+	local childName = self:getFullName() .. " " .. phrase
+	nodeModifier = getModifier(childName, self.plan.testNamePattern, nodeModifier)
+	local child = TestNode.new(self.plan, phrase, nodeType, nodeModifier)
+	child.parent = self
+	table.insert(self.children, child)
+	return child
+end
+
+--[[
+	Join the names of all the nodes back to the parent.
+]]
+function TestNode:getFullName()
+	if self.parent then
+		local parentPhrase = self.parent:getFullName()
+		if parentPhrase then
+			return parentPhrase .. " " .. self.phrase
+		end
+	end
+	return self.phrase
+end
+
+--[[
+	Expand a node by setting its callback environment and then calling it. Any
+	further it and describe calls within the callback will be added to the tree.
+]]
+function TestNode:expand()
+	local originalEnv = getfenv(self.callback)
+	local callbackEnv = setmetatable({}, { __index = originalEnv })
+	for key, value in pairs(self.environment) do
+		callbackEnv[key] = value
+	end
+	-- Copy 'script' directly to new env to make Studio debugger happy.
+	-- Studio debugger does not look into __index, because of security reasons
+	callbackEnv.script = originalEnv.script
+	setfenv(self.callback, callbackEnv)
+
+	local success, result = xpcall(self.callback, function(message)
+		return debug.traceback(tostring(message), 2)
+	end)
+
+	if not success then
+		self.loadError = result
+	end
+end
+
+local TestPlan = {}
+TestPlan.__index = TestPlan
+
+--[[
+	Create a new, empty TestPlan.
+]]
+function TestPlan.new(testNamePattern, extraEnvironment)
+	local plan = {
+		children = {},
+		testNamePattern = testNamePattern,
+		extraEnvironment = extraEnvironment,
+	}
+
+	return setmetatable(plan, TestPlan)
+end
+
+--[[
+	Add a new child under the test plan's root node.
+]]
+function TestPlan:addChild(phrase, nodeType, nodeModifier)
+	nodeModifier = getModifier(phrase, self.testNamePattern, nodeModifier)
+	local child = TestNode.new(self, phrase, nodeType, nodeModifier)
+	table.insert(self.children, child)
+	return child
+end
+
+--[[
+	Add a new describe node with the given method as a callback. Generates or
+	reuses all the describe nodes along the path.
+]]
+function TestPlan:addRoot(path, method)
+	local curNode = self
+	for i = #path, 1, -1 do
+		local nextNode = nil
+
+		for _, child in ipairs(curNode.children) do
+			if child.phrase == path[i] then
+				nextNode = child
+				break
+			end
+		end
+
+		if nextNode == nil then
+			nextNode = curNode:addChild(path[i], TestEnum.NodeType.Describe)
+		end
+
+		curNode = nextNode
+	end
+
+	curNode.callback = method
+	curNode:expand()
+end
+
+--[[
+	Calls the given callback on all nodes in the tree, traversed depth-first.
+]]
+function TestPlan:visitAllNodes(callback, root, level)
+	root = root or self
+	level = level or 0
+
+	for _, child in ipairs(root.children) do
+		callback(child, level)
+
+		self:visitAllNodes(callback, child, level + 1)
+	end
+end
+
+--[[
+	Visualizes the test plan in a simple format, suitable for debugging the test
+	plan's structure.
+]]
+function TestPlan:visualize()
+	local buffer = {}
+	self:visitAllNodes(function(node, level)
+		table.insert(buffer, (" "):rep(3 * level) .. node.phrase)
+	end)
+	return table.concat(buffer, "\n")
+end
+
+--[[
+	Gets a list of all nodes in the tree for which the given callback returns
+	true.
+]]
+function TestPlan:findNodes(callback)
+	local results = {}
+	self:visitAllNodes(function(node)
+		if callback(node) then
+			table.insert(results, node)
+		end
+	end)
+	return results
+end
+
+return TestPlan
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="14">
+        <Properties>
+          <string name="Name">TestPlanner</string>
+          <string name="Source">--[[
+	Turns a series of specification functions into a test plan.
+
+	Uses a TestPlanBuilder to keep track of the state of the tree being built.
+]]
+local TestPlan = require(script.Parent.TestPlan)
+
+local TestPlanner = {}
+
+--[[
+	Create a new TestPlan from a list of specification functions.
+
+	These functions should call a combination of `describe` and `it` (and their
+	variants), which will be turned into a test plan to be executed.
+
+	Parameters:
+		- modulesList - list of tables describing test modules {
+			method, -- specification function described above
+			path, -- array of parent entires, first element is the leaf that owns `method`
+			pathStringForSorting -- a string representation of `path`, used for sorting of the test plan
+		}
+		- testNamePattern - Only tests matching this Lua pattern string will run. Pass empty or nil to run all tests
+		- extraEnvironment - Lua table holding additional functions and variables to be injected into the specification
+							function during execution
+]]
+function TestPlanner.createPlan(modulesList, testNamePattern, extraEnvironment)
+	local plan = TestPlan.new(testNamePattern, extraEnvironment)
+
+	table.sort(modulesList, function(a, b)
+		return a.pathStringForSorting &lt; b.pathStringForSorting
+	end)
+
+	for _, module in ipairs(modulesList) do
+		plan:addRoot(module.path, module.method)
+	end
+
+	return plan
+end
+
+return TestPlanner</string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="15">
+        <Properties>
+          <string name="Name">TestResults</string>
+          <string name="Source">--[[
+	Represents a tree of test results.
+
+	Each node in the tree corresponds directly to a node in a corresponding
+	TestPlan, accessible via the 'planNode' field.
+
+	TestResults objects are produced by TestRunner using TestSession as state.
+]]
+
+local TestEnum = require(script.Parent.TestEnum)
+
+local STATUS_SYMBOLS = {
+	[TestEnum.TestStatus.Success] = "+",
+	[TestEnum.TestStatus.Failure] = "-",
+	[TestEnum.TestStatus.Skipped] = "~"
+}
+
+local TestResults = {}
+
+TestResults.__index = TestResults
+
+--[[
+	Create a new TestResults tree that's linked to the given TestPlan.
+]]
+function TestResults.new(plan)
+	local self = {
+		successCount = 0,
+		failureCount = 0,
+		skippedCount = 0,
+		planNode = plan,
+		children = {},
+		errors = {}
+	}
+
+	setmetatable(self, TestResults)
+
+	return self
+end
+
+--[[
+	Create a new result node that can be inserted into a TestResult tree.
+]]
+function TestResults.createNode(planNode)
+	local node = {
+		planNode = planNode,
+		children = {},
+		errors = {},
+		status = nil
+	}
+
+	return node
+end
+
+--[[
+	Visit all test result nodes, depth-first.
+]]
+function TestResults:visitAllNodes(callback, root)
+	root = root or self
+
+	for _, child in ipairs(root.children) do
+		callback(child)
+
+		self:visitAllNodes(callback, child)
+	end
+end
+
+--[[
+	Creates a debug visualization of the test results.
+]]
+function TestResults:visualize(root, level)
+	root = root or self
+	level = level or 0
+
+	local buffer = {}
+
+	for _, child in ipairs(root.children) do
+		if child.planNode.type == TestEnum.NodeType.It then
+			local symbol = STATUS_SYMBOLS[child.status] or "?"
+			local str = ("%s[%s] %s"):format(
+				(" "):rep(3 * level),
+				symbol,
+				child.planNode.phrase
+			)
+
+			if child.messages and #child.messages > 0 then
+				str = str .. "\n " .. (" "):rep(3 * level) .. table.concat(child.messages, "\n " .. (" "):rep(3 * level))
+			end
+
+			table.insert(buffer, str)
+		else
+			local str = ("%s%s"):format(
+				(" "):rep(3 * level),
+				child.planNode.phrase or ""
+			)
+
+			if child.status then
+				str = str .. (" (%s)"):format(child.status)
+			end
+
+			table.insert(buffer, str)
+
+			if #child.children > 0 then
+				local text = self:visualize(child, level + 1)
+				table.insert(buffer, text)
+			end
+		end
+	end
+
+	return table.concat(buffer, "\n")
+end
+
+return TestResults</string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">TestRunner</string>
+          <string name="Source"><![CDATA[--[[
+	Contains the logic to run a test plan and gather test results from it.
+
+	TestRunner accepts a TestPlan object, executes the planned tests, and
+	produces a TestResults object. While the tests are running, the system's
+	state is contained inside a TestSession object.
+]]
+
+local TestEnum = require(script.Parent.TestEnum)
+local TestSession = require(script.Parent.TestSession)
+local LifecycleHooks = require(script.Parent.LifecycleHooks)
+
+local RUNNING_GLOBAL = "__TESTEZ_RUNNING_TEST__"
+
+local TestRunner = {
+	environment = {}
+}
+
+local function wrapExpectContextWithPublicApi(expectationContext)
+	return setmetatable({
+		extend = function(...)
+			expectationContext:extend(...)
+		end,
+	}, {
+		__call = function(_self, ...)
+			return expectationContext:startExpectationChain(...)
+		end,
+	})
+end
+
+--[[
+	Runs the given TestPlan and returns a TestResults object representing the
+	results of the run.
+]]
+function TestRunner.runPlan(plan)
+	local session = TestSession.new(plan)
+	local lifecycleHooks = LifecycleHooks.new()
+
+	local exclusiveNodes = plan:findNodes(function(node)
+		return node.modifier == TestEnum.NodeModifier.Focus
+	end)
+
+	session.hasFocusNodes = #exclusiveNodes > 0
+
+	TestRunner.runPlanNode(session, plan, lifecycleHooks)
+
+	return session:finalize()
+end
+
+--[[
+	Run the given test plan node and its descendants, using the given test
+	session to store all of the results.
+]]
+function TestRunner.runPlanNode(session, planNode, lifecycleHooks)
+	local function runCallback(callback, messagePrefix)
+		local success = true
+		local errorMessage
+		-- Any code can check RUNNING_GLOBAL to fork behavior based on
+		-- whether a test is running. We use this to avoid accessing
+		-- protected APIs; it's a workaround that will go away someday.
+		_G[RUNNING_GLOBAL] = true
+
+		messagePrefix = messagePrefix or ""
+
+		local testEnvironment = getfenv(callback)
+
+		for key, value in pairs(TestRunner.environment) do
+			testEnvironment[key] = value
+		end
+
+		testEnvironment.fail = function(message)
+			if message == nil then
+				message = "fail() was called."
+			end
+
+			success = false
+			errorMessage = messagePrefix .. debug.traceback(tostring(message), 2)
+		end
+
+		testEnvironment.expect = wrapExpectContextWithPublicApi(session:getExpectationContext())
+
+		local context = session:getContext()
+
+		local nodeSuccess, nodeResult = xpcall(
+			function()
+				callback(context)
+			end,
+			function(message)
+				return messagePrefix .. debug.traceback(tostring(message), 2)
+			end
+		)
+
+		-- If a node threw an error, we prefer to use that message over
+		-- one created by fail() if it was set.
+		if not nodeSuccess then
+			success = false
+			errorMessage = nodeResult
+		end
+
+		_G[RUNNING_GLOBAL] = nil
+
+		return success, errorMessage
+	end
+
+	local function runNode(childPlanNode)
+		-- Errors can be set either via `error` propagating upwards or
+		-- by a test calling fail([message]).
+
+		for _, hook in ipairs(lifecycleHooks:getBeforeEachHooks()) do
+			local success, errorMessage = runCallback(hook, "beforeEach hook: ")
+			if not success then
+				return false, errorMessage
+			end
+		end
+
+		local testSuccess, testErrorMessage = runCallback(childPlanNode.callback)
+
+		for _, hook in ipairs(lifecycleHooks:getAfterEachHooks()) do
+			local success, errorMessage = runCallback(hook, "afterEach hook: ")
+			if not success then
+				if not testSuccess then
+					return false, testErrorMessage .. "\nWhile cleaning up the failed test another error was found:\n" .. errorMessage
+				end
+				return false, errorMessage
+			end
+		end
+
+		if not testSuccess then
+			return false, testErrorMessage
+		end
+
+		return true, nil
+	end
+
+	lifecycleHooks:pushHooksFrom(planNode)
+
+	local halt = false
+	for _, hook in ipairs(lifecycleHooks:getBeforeAllHooks()) do
+		local success, errorMessage = runCallback(hook, "beforeAll hook: ")
+		if not success then
+			session:addDummyError("beforeAll", errorMessage)
+			halt = true
+		end
+	end
+
+	if not halt then
+		for _, childPlanNode in ipairs(planNode.children) do
+			if childPlanNode.type == TestEnum.NodeType.It then
+				session:pushNode(childPlanNode)
+				if session:shouldSkip() then
+					session:setSkipped()
+				else
+					local success, errorMessage = runNode(childPlanNode)
+
+					if success then
+						session:setSuccess()
+					else
+						session:setError(errorMessage)
+					end
+				end
+				session:popNode()
+			elseif childPlanNode.type == TestEnum.NodeType.Describe then
+				session:pushNode(childPlanNode)
+				TestRunner.runPlanNode(session, childPlanNode, lifecycleHooks)
+
+				-- Did we have an error trying build a test plan?
+				if childPlanNode.loadError then
+					local message = "Error during planning: " .. childPlanNode.loadError
+					session:setError(message)
+				else
+					session:setStatusFromChildren()
+				end
+				session:popNode()
+			end
+		end
+	end
+
+	for _, hook in ipairs(lifecycleHooks:getAfterAllHooks()) do
+		local success, errorMessage = runCallback(hook, "afterAll hook: ")
+		if not success then
+			session:addDummyError("afterAll", errorMessage)
+		end
+	end
+
+	lifecycleHooks:popHooks()
+end
+
+return TestRunner
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">TestSession</string>
+          <string name="Source"><![CDATA[--[[
+	Represents the state relevant while executing a test plan.
+
+	Used by TestRunner to produce a TestResults object.
+
+	Uses the same tree building structure as TestPlanBuilder; TestSession keeps
+	track of a stack of nodes that represent the current path through the tree.
+]]
+
+local TestEnum = require(script.Parent.TestEnum)
+local TestResults = require(script.Parent.TestResults)
+local Context = require(script.Parent.Context)
+local ExpectationContext = require(script.Parent.ExpectationContext)
+
+local TestSession = {}
+
+TestSession.__index = TestSession
+
+--[[
+	Create a TestSession related to the given TestPlan.
+
+	The resulting TestResults object will be linked to this TestPlan.
+]]
+function TestSession.new(plan)
+	local self = {
+		results = TestResults.new(plan),
+		nodeStack = {},
+		contextStack = {},
+		expectationContextStack = {},
+		hasFocusNodes = false
+	}
+
+	setmetatable(self, TestSession)
+
+	return self
+end
+
+--[[
+	Calculate success, failure, and skipped test counts in the tree at the
+	current point in the execution.
+]]
+function TestSession:calculateTotals()
+	local results = self.results
+
+	results.successCount = 0
+	results.failureCount = 0
+	results.skippedCount = 0
+
+	results:visitAllNodes(function(node)
+		local status = node.status
+		local nodeType = node.planNode.type
+
+		if nodeType == TestEnum.NodeType.It then
+			if status == TestEnum.TestStatus.Success then
+				results.successCount = results.successCount + 1
+			elseif status == TestEnum.TestStatus.Failure then
+				results.failureCount = results.failureCount + 1
+			elseif status == TestEnum.TestStatus.Skipped then
+				results.skippedCount = results.skippedCount + 1
+			end
+		end
+	end)
+end
+
+--[[
+	Gathers all of the errors reported by tests and puts them at the top level
+	of the TestResults object.
+]]
+function TestSession:gatherErrors()
+	local results = self.results
+
+	results.errors = {}
+
+	results:visitAllNodes(function(node)
+		if #node.errors > 0 then
+			for _, message in ipairs(node.errors) do
+				table.insert(results.errors, message)
+			end
+		end
+	end)
+end
+
+--[[
+	Calculates test totals, verifies the tree is valid, and returns results.
+]]
+function TestSession:finalize()
+	if #self.nodeStack ~= 0 then
+		error("Cannot finalize TestResults with nodes still on the stack!", 2)
+	end
+
+	self:calculateTotals()
+	self:gatherErrors()
+
+	return self.results
+end
+
+--[[
+	Create a new test result node and push it onto the navigation stack.
+]]
+function TestSession:pushNode(planNode)
+	local node = TestResults.createNode(planNode)
+	local lastNode = self.nodeStack[#self.nodeStack] or self.results
+	table.insert(lastNode.children, node)
+	table.insert(self.nodeStack, node)
+
+	local lastContext = self.contextStack[#self.contextStack]
+	local context = Context.new(lastContext)
+	table.insert(self.contextStack, context)
+
+	local lastExpectationContext = self.expectationContextStack[#self.expectationContextStack]
+	local expectationContext = ExpectationContext.new(lastExpectationContext)
+	table.insert(self.expectationContextStack, expectationContext)
+end
+
+--[[
+	Pops a node off of the navigation stack.
+]]
+function TestSession:popNode()
+	assert(#self.nodeStack > 0, "Tried to pop from an empty node stack!")
+	table.remove(self.nodeStack, #self.nodeStack)
+	table.remove(self.contextStack, #self.contextStack)
+	table.remove(self.expectationContextStack, #self.expectationContextStack)
+end
+
+--[[
+	Gets the Context object for the current node.
+]]
+function TestSession:getContext()
+	assert(#self.contextStack > 0, "Tried to get context from an empty stack!")
+	return self.contextStack[#self.contextStack]
+end
+
+
+function TestSession:getExpectationContext()
+	assert(#self.expectationContextStack > 0, "Tried to get expectationContext from an empty stack!")
+	return self.expectationContextStack[#self.expectationContextStack]
+end
+
+--[[
+	Tells whether the current test we're in should be skipped.
+]]
+function TestSession:shouldSkip()
+	-- If our test tree had any exclusive tests, then normal tests are skipped!
+	if self.hasFocusNodes then
+		for i = #self.nodeStack, 1, -1 do
+			local node = self.nodeStack[i]
+
+			-- Skipped tests are still skipped
+			if node.planNode.modifier == TestEnum.NodeModifier.Skip then
+				return true
+			end
+
+			-- Focused tests are the only ones that aren't skipped
+			if node.planNode.modifier == TestEnum.NodeModifier.Focus then
+				return false
+			end
+		end
+
+		return true
+	else
+		for i = #self.nodeStack, 1, -1 do
+			local node = self.nodeStack[i]
+
+			if node.planNode.modifier == TestEnum.NodeModifier.Skip then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+--[[
+	Set the current node's status to Success.
+]]
+function TestSession:setSuccess()
+	assert(#self.nodeStack > 0, "Attempting to set success status on empty stack")
+	self.nodeStack[#self.nodeStack].status = TestEnum.TestStatus.Success
+end
+
+--[[
+	Set the current node's status to Skipped.
+]]
+function TestSession:setSkipped()
+	assert(#self.nodeStack > 0, "Attempting to set skipped status on empty stack")
+	self.nodeStack[#self.nodeStack].status = TestEnum.TestStatus.Skipped
+end
+
+--[[
+	Set the current node's status to Failure and adds a message to its list of
+	errors.
+]]
+function TestSession:setError(message)
+	assert(#self.nodeStack > 0, "Attempting to set error status on empty stack")
+	local last = self.nodeStack[#self.nodeStack]
+	last.status = TestEnum.TestStatus.Failure
+	table.insert(last.errors, message)
+end
+
+--[[
+	Add a dummy child node to the current node to hold the given error. This
+	allows an otherwise empty describe node to report an error in a more natural
+	way.
+]]
+function TestSession:addDummyError(phrase, message)
+	self:pushNode({type = TestEnum.NodeType.It, phrase = phrase})
+	self:setError(message)
+	self:popNode()
+	self.nodeStack[#self.nodeStack].status = TestEnum.TestStatus.Failure
+end
+
+--[[
+	Set the current node's status based on that of its children. If all children
+	are skipped, mark it as skipped. If any are fails, mark it as failed.
+	Otherwise, mark it as success.
+]]
+function TestSession:setStatusFromChildren()
+	assert(#self.nodeStack > 0, "Attempting to set status from children on empty stack")
+
+	local last = self.nodeStack[#self.nodeStack]
+	local status = TestEnum.TestStatus.Success
+	local skipped = true
+
+	-- If all children were skipped, then we were skipped
+	-- If any child failed, then we failed!
+	for _, child in ipairs(last.children) do
+		if child.status ~= TestEnum.TestStatus.Skipped then
+			skipped = false
+
+			if child.status == TestEnum.TestStatus.Failure then
+				status = TestEnum.TestStatus.Failure
+			end
+		end
+	end
+
+	if skipped then
+		status = TestEnum.TestStatus.Skipped
+	end
+
+	last.status = status
+end
+
+return TestSession
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="ModuleScript" referent="18">
+      <Properties>
+        <string name="Name">t</string>
+        <string name="Source"><![CDATA[-- t: a runtime typechecker for Roblox
+
+-- regular lua compatibility
+local typeof = typeof or type
+
+local function primitive(typeName)
+	return function(value)
+		local valueType = typeof(value)
+		if valueType == typeName then
+			return true
+		else
+			return false, string.format("%s expected, got %s", typeName, valueType)
+		end
+	end
+end
+
+local t = {}
+
+--[[**
+	matches any type except nil
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+function t.any(value)
+	if value ~= nil then
+		return true
+	else
+		return false, "any expected, got nil"
+	end
+end
+
+--Lua primitives
+
+--[[**
+	ensures Lua primitive boolean type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.boolean = primitive("boolean")
+
+--[[**
+	ensures Lua primitive thread type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.thread = primitive("thread")
+
+--[[**
+	ensures Lua primitive callback type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.callback = primitive("function")
+t["function"] = t.callback
+
+--[[**
+	ensures Lua primitive none type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.none = primitive("nil")
+t["nil"] = t.none
+
+--[[**
+	ensures Lua primitive string type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.string = primitive("string")
+
+--[[**
+	ensures Lua primitive table type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.table = primitive("table")
+
+--[[**
+	ensures Lua primitive userdata type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.userdata = primitive("userdata")
+
+--[[**
+	ensures value is a number and non-NaN
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+function t.number(value)
+	local valueType = typeof(value)
+	if valueType == "number" then
+		if value == value then
+			return true
+		else
+			return false, "unexpected NaN value"
+		end
+	else
+		return false, string.format("number expected, got %s", valueType)
+	end
+end
+
+--[[**
+	ensures value is NaN
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+function t.nan(value)
+	if value ~= value then
+		return true
+	else
+		return false, "unexpected non-NaN value"
+	end
+end
+
+-- roblox types
+
+--[[**
+	ensures Roblox Axes type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Axes = primitive("Axes")
+
+--[[**
+	ensures Roblox BrickColor type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.BrickColor = primitive("BrickColor")
+
+--[[**
+	ensures Roblox CFrame type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.CFrame = primitive("CFrame")
+
+--[[**
+	ensures Roblox Color3 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Color3 = primitive("Color3")
+
+--[[**
+	ensures Roblox ColorSequence type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.ColorSequence = primitive("ColorSequence")
+
+--[[**
+	ensures Roblox ColorSequenceKeypoint type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.ColorSequenceKeypoint = primitive("ColorSequenceKeypoint")
+
+--[[**
+	ensures Roblox DockWidgetPluginGuiInfo type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.DockWidgetPluginGuiInfo = primitive("DockWidgetPluginGuiInfo")
+
+--[[**
+	ensures Roblox Faces type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Faces = primitive("Faces")
+
+--[[**
+	ensures Roblox Instance type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Instance = primitive("Instance")
+
+--[[**
+	ensures Roblox NumberRange type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.NumberRange = primitive("NumberRange")
+
+--[[**
+	ensures Roblox NumberSequence type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.NumberSequence = primitive("NumberSequence")
+
+--[[**
+	ensures Roblox NumberSequenceKeypoint type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.NumberSequenceKeypoint = primitive("NumberSequenceKeypoint")
+
+--[[**
+	ensures Roblox PathWaypoint type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.PathWaypoint = primitive("PathWaypoint")
+
+--[[**
+	ensures Roblox PhysicalProperties type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.PhysicalProperties = primitive("PhysicalProperties")
+
+--[[**
+	ensures Roblox Random type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Random = primitive("Random")
+
+--[[**
+	ensures Roblox Ray type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Ray = primitive("Ray")
+
+--[[**
+	ensures Roblox Rect type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Rect = primitive("Rect")
+
+--[[**
+	ensures Roblox Region3 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Region3 = primitive("Region3")
+
+--[[**
+	ensures Roblox Region3int16 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Region3int16 = primitive("Region3int16")
+
+--[[**
+	ensures Roblox TweenInfo type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.TweenInfo = primitive("TweenInfo")
+
+--[[**
+	ensures Roblox UDim type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.UDim = primitive("UDim")
+
+--[[**
+	ensures Roblox UDim2 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.UDim2 = primitive("UDim2")
+
+--[[**
+	ensures Roblox Vector2 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Vector2 = primitive("Vector2")
+
+--[[**
+	ensures Roblox Vector3 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Vector3 = primitive("Vector3")
+
+--[[**
+	ensures Roblox Vector3int16 type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Vector3int16 = primitive("Vector3int16")
+
+-- roblox enum types
+
+--[[**
+	ensures Roblox Enum type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.Enum = primitive("Enum")
+
+--[[**
+	ensures Roblox EnumItem type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.EnumItem = primitive("EnumItem")
+
+--[[**
+	ensures Roblox RBXScriptSignal type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.RBXScriptSignal = primitive("RBXScriptSignal")
+
+--[[**
+	ensures Roblox RBXScriptConnection type
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+t.RBXScriptConnection = primitive("RBXScriptConnection")
+
+--[[**
+	ensures value is a given literal value
+
+	@param literal The literal to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.literal(...)
+	local size = select("#", ...)
+	if size == 1 then
+		local literal = ...
+		return function(value)
+			if value ~= literal then
+				return false, string.format("expected %s, got %s", tostring(literal), tostring(value))
+			end
+
+			return true
+		end
+	else
+		local literals = {}
+		for i = 1, size do
+			local value = select(i, ...)
+			literals[i] = t.literal(value)
+		end
+
+		return t.union(table.unpack(literals, 1, size))
+	end
+end
+
+--[[**
+	DEPRECATED
+	Please use t.literal
+**--]]
+t.exactly = t.literal
+
+--[[**
+	Returns a t.union of each key in the table as a t.literal
+
+	@param keyTable The table to get keys from
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+function t.keyOf(keyTable)
+	local keys = {}
+	local length = 0
+	for key in pairs(keyTable) do
+		length = length + 1
+		keys[length] = key
+	end
+
+	return t.literal(table.unpack(keys, 1, length))
+end
+
+--[[**
+	Returns a t.union of each value in the table as a t.literal
+
+	@param valueTable The table to get values from
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+function t.valueOf(valueTable)
+	local values = {}
+	local length = 0
+	for _, value in pairs(valueTable) do
+		length = length + 1
+		values[length] = value
+	end
+
+	return t.literal(table.unpack(values, 1, length))
+end
+
+--[[**
+	ensures value is an integer
+
+	@param value The value to check against
+
+	@returns True iff the condition is satisfied, false otherwise
+**--]]
+function t.integer(value)
+	local success, errMsg = t.number(value)
+	if not success then
+		return false, errMsg or ""
+	end
+
+	if value % 1 == 0 then
+		return true
+	else
+		return false, string.format("integer expected, got %s", value)
+	end
+end
+
+--[[**
+	ensures value is a number where min <= value
+
+	@param min The minimum to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.numberMin(min)
+	return function(value)
+		local success, errMsg = t.number(value)
+		if not success then
+			return false, errMsg or ""
+		end
+
+		if value >= min then
+			return true
+		else
+			return false, string.format("number >= %s expected, got %s", min, value)
+		end
+	end
+end
+
+--[[**
+	ensures value is a number where value <= max
+
+	@param max The maximum to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.numberMax(max)
+	return function(value)
+		local success, errMsg = t.number(value)
+		if not success then
+			return false, errMsg
+		end
+
+		if value <= max then
+			return true
+		else
+			return false, string.format("number <= %s expected, got %s", max, value)
+		end
+	end
+end
+
+--[[**
+	ensures value is a number where min < value
+
+	@param min The minimum to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.numberMinExclusive(min)
+	return function(value)
+		local success, errMsg = t.number(value)
+		if not success then
+			return false, errMsg or ""
+		end
+
+		if min < value then
+			return true
+		else
+			return false, string.format("number > %s expected, got %s", min, value)
+		end
+	end
+end
+
+--[[**
+	ensures value is a number where value < max
+
+	@param max The maximum to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.numberMaxExclusive(max)
+	return function(value)
+		local success, errMsg = t.number(value)
+		if not success then
+			return false, errMsg or ""
+		end
+
+		if value < max then
+			return true
+		else
+			return false, string.format("number < %s expected, got %s", max, value)
+		end
+	end
+end
+
+--[[**
+	ensures value is a number where value > 0
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+t.numberPositive = t.numberMinExclusive(0)
+
+--[[**
+	ensures value is a number where value < 0
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+t.numberNegative = t.numberMaxExclusive(0)
+
+--[[**
+	ensures value is a number where min <= value <= max
+
+	@param min The minimum to use
+	@param max The maximum to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.numberConstrained(min, max)
+	assert(t.number(min) and t.number(max))
+	local minCheck = t.numberMin(min)
+	local maxCheck = t.numberMax(max)
+
+	return function(value)
+		local minSuccess, minErrMsg = minCheck(value)
+		if not minSuccess then
+			return false, minErrMsg or ""
+		end
+
+		local maxSuccess, maxErrMsg = maxCheck(value)
+		if not maxSuccess then
+			return false, maxErrMsg or ""
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures value is a number where min < value < max
+
+	@param min The minimum to use
+	@param max The maximum to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.numberConstrainedExclusive(min, max)
+	assert(t.number(min) and t.number(max))
+	local minCheck = t.numberMinExclusive(min)
+	local maxCheck = t.numberMaxExclusive(max)
+
+	return function(value)
+		local minSuccess, minErrMsg = minCheck(value)
+		if not minSuccess then
+			return false, minErrMsg or ""
+		end
+
+		local maxSuccess, maxErrMsg = maxCheck(value)
+		if not maxSuccess then
+			return false, maxErrMsg or ""
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures value matches string pattern
+
+	@param string pattern to check against
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.match(pattern)
+	assert(t.string(pattern))
+	return function(value)
+		local stringSuccess, stringErrMsg = t.string(value)
+		if not stringSuccess then
+			return false, stringErrMsg
+		end
+
+		if string.match(value, pattern) == nil then
+			return false, string.format("%q failed to match pattern %q", value, pattern)
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures value is either nil or passes check
+
+	@param check The check to use
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.optional(check)
+	assert(t.callback(check))
+	return function(value)
+		if value == nil then
+			return true
+		end
+
+		local success, errMsg = check(value)
+		if success then
+			return true
+		else
+			return false, string.format("(optional) %s", errMsg or "")
+		end
+	end
+end
+
+--[[**
+	matches given tuple against tuple type definition
+
+	@param ... The type definition for the tuples
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.tuple(...)
+	local checks = { ... }
+	return function(...)
+		local args = { ... }
+		for i, check in ipairs(checks) do
+			local success, errMsg = check(args[i])
+			if success == false then
+				return false, string.format("Bad tuple index #%s:\n\t%s", i, errMsg or "")
+			end
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures all keys in given table pass check
+
+	@param check The function to use to check the keys
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.keys(check)
+	assert(t.callback(check))
+	return function(value)
+		local tableSuccess, tableErrMsg = t.table(value)
+		if tableSuccess == false then
+			return false, tableErrMsg or ""
+		end
+
+		for key in pairs(value) do
+			local success, errMsg = check(key)
+			if success == false then
+				return false, string.format("bad key %s:\n\t%s", tostring(key), errMsg or "")
+			end
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures all values in given table pass check
+
+	@param check The function to use to check the values
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.values(check)
+	assert(t.callback(check))
+	return function(value)
+		local tableSuccess, tableErrMsg = t.table(value)
+		if tableSuccess == false then
+			return false, tableErrMsg or ""
+		end
+
+		for key, val in pairs(value) do
+			local success, errMsg = check(val)
+			if success == false then
+				return false, string.format("bad value for key %s:\n\t%s", tostring(key), errMsg or "")
+			end
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures value is a table and all keys pass keyCheck and all values pass valueCheck
+
+	@param keyCheck The function to use to check the keys
+	@param valueCheck The function to use to check the values
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.map(keyCheck, valueCheck)
+	assert(t.callback(keyCheck), t.callback(valueCheck))
+	local keyChecker = t.keys(keyCheck)
+	local valueChecker = t.values(valueCheck)
+
+	return function(value)
+		local keySuccess, keyErr = keyChecker(value)
+		if not keySuccess then
+			return false, keyErr or ""
+		end
+
+		local valueSuccess, valueErr = valueChecker(value)
+		if not valueSuccess then
+			return false, valueErr or ""
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures value is a table and all keys pass valueCheck and all values are true
+
+	@param valueCheck The function to use to check the values
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.set(valueCheck)
+	return t.map(valueCheck, t.literal(true))
+end
+
+do
+	local arrayKeysCheck = t.keys(t.integer)
+--[[**
+		ensures value is an array and all values of the array match check
+
+		@param check The check to compare all values with
+
+		@returns A function that will return true iff the condition is passed
+	**--]]
+	function t.array(check)
+		assert(t.callback(check))
+		local valuesCheck = t.values(check)
+
+		return function(value)
+			local keySuccess, keyErrMsg = arrayKeysCheck(value)
+			if keySuccess == false then
+				return false, string.format("[array] %s", keyErrMsg or "")
+			end
+
+			-- # is unreliable for sparse arrays
+			-- Count upwards using ipairs to avoid false positives from the behavior of #
+			local arraySize = 0
+
+			for _ in ipairs(value) do
+				arraySize = arraySize + 1
+			end
+
+			for key in pairs(value) do
+				if key < 1 or key > arraySize then
+					return false, string.format("[array] key %s must be sequential", tostring(key))
+				end
+			end
+
+			local valueSuccess, valueErrMsg = valuesCheck(value)
+			if not valueSuccess then
+				return false, string.format("[array] %s", valueErrMsg or "")
+			end
+
+			return true
+		end
+	end
+
+--[[**
+		ensures value is an array of a strict makeup and size
+
+		@param check The check to compare all values with
+
+		@returns A function that will return true iff the condition is passed
+	**--]]
+	function t.strictArray(...)
+		local valueTypes = { ... }
+		assert(t.array(t.callback)(valueTypes))
+
+		return function(value)
+			local keySuccess, keyErrMsg = arrayKeysCheck(value)
+			if keySuccess == false then
+				return false, string.format("[strictArray] %s", keyErrMsg or "")
+			end
+
+			-- If there's more than the set array size, disallow
+			if #valueTypes < #value then
+				return false, string.format("[strictArray] Array size exceeds limit of %d", #valueTypes)
+			end
+
+			for idx, typeFn in pairs(valueTypes) do
+				local typeSuccess, typeErrMsg = typeFn(value[idx])
+				if not typeSuccess then
+					return false, string.format("[strictArray] Array index #%d - %s", idx, typeErrMsg)
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+do
+	local callbackArray = t.array(t.callback)
+--[[**
+		creates a union type
+
+		@param ... The checks to union
+
+		@returns A function that will return true iff the condition is passed
+	**--]]
+	function t.union(...)
+		local checks = { ... }
+		assert(callbackArray(checks))
+
+		return function(value)
+			for _, check in ipairs(checks) do
+				if check(value) then
+					return true
+				end
+			end
+
+			return false, "bad type for union"
+		end
+	end
+
+--[[**
+		Alias for t.union
+	**--]]
+	t.some = t.union
+
+--[[**
+		creates an intersection type
+
+		@param ... The checks to intersect
+
+		@returns A function that will return true iff the condition is passed
+	**--]]
+	function t.intersection(...)
+		local checks = { ... }
+		assert(callbackArray(checks))
+
+		return function(value)
+			for _, check in ipairs(checks) do
+				local success, errMsg = check(value)
+				if not success then
+					return false, errMsg or ""
+				end
+			end
+
+			return true
+		end
+	end
+
+--[[**
+		Alias for t.intersection
+	**--]]
+	t.every = t.intersection
+end
+
+do
+	local checkInterface = t.map(t.any, t.callback)
+--[[**
+		ensures value matches given interface definition
+
+		@param checkTable The interface definition
+
+		@returns A function that will return true iff the condition is passed
+	**--]]
+	function t.interface(checkTable)
+		assert(checkInterface(checkTable))
+		return function(value)
+			local tableSuccess, tableErrMsg = t.table(value)
+			if tableSuccess == false then
+				return false, tableErrMsg or ""
+			end
+
+			for key, check in pairs(checkTable) do
+				local success, errMsg = check(value[key])
+				if success == false then
+					return false, string.format("[interface] bad value for %s:\n\t%s", tostring(key), errMsg or "")
+				end
+			end
+
+			return true
+		end
+	end
+
+--[[**
+		ensures value matches given interface definition strictly
+
+		@param checkTable The interface definition
+
+		@returns A function that will return true iff the condition is passed
+	**--]]
+	function t.strictInterface(checkTable)
+		assert(checkInterface(checkTable))
+		return function(value)
+			local tableSuccess, tableErrMsg = t.table(value)
+			if tableSuccess == false then
+				return false, tableErrMsg or ""
+			end
+
+			for key, check in pairs(checkTable) do
+				local success, errMsg = check(value[key])
+				if success == false then
+					return false, string.format("[interface] bad value for %s:\n\t%s", tostring(key), errMsg or "")
+				end
+			end
+
+			for key in pairs(value) do
+				if not checkTable[key] then
+					return false, string.format("[interface] unexpected field %q", tostring(key))
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+--[[**
+	ensure value is an Instance and it's ClassName matches the given ClassName
+
+	@param className The class name to check for
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.instanceOf(className, childTable)
+	assert(t.string(className))
+
+	local childrenCheck
+	if childTable ~= nil then
+		childrenCheck = t.children(childTable)
+	end
+
+	return function(value)
+		local instanceSuccess, instanceErrMsg = t.Instance(value)
+		if not instanceSuccess then
+			return false, instanceErrMsg or ""
+		end
+
+		if value.ClassName ~= className then
+			return false, string.format("%s expected, got %s", className, value.ClassName)
+		end
+
+		if childrenCheck then
+			local childrenSuccess, childrenErrMsg = childrenCheck(value)
+			if not childrenSuccess then
+				return false, childrenErrMsg
+			end
+		end
+
+		return true
+	end
+end
+
+t.instance = t.instanceOf
+
+--[[**
+	ensure value is an Instance and it's ClassName matches the given ClassName by an IsA comparison
+
+	@param className The class name to check for
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.instanceIsA(className, childTable)
+	assert(t.string(className))
+
+	local childrenCheck
+	if childTable ~= nil then
+		childrenCheck = t.children(childTable)
+	end
+
+	return function(value)
+		local instanceSuccess, instanceErrMsg = t.Instance(value)
+		if not instanceSuccess then
+			return false, instanceErrMsg or ""
+		end
+
+		if not value:IsA(className) then
+			return false, string.format("%s expected, got %s", className, value.ClassName)
+		end
+
+		if childrenCheck then
+			local childrenSuccess, childrenErrMsg = childrenCheck(value)
+			if not childrenSuccess then
+				return false, childrenErrMsg
+			end
+		end
+
+		return true
+	end
+end
+
+--[[**
+	ensures value is an enum of the correct type
+
+	@param enum The enum to check
+
+	@returns A function that will return true iff the condition is passed
+**--]]
+function t.enum(enum)
+	assert(t.Enum(enum))
+	return function(value)
+		local enumItemSuccess, enumItemErrMsg = t.EnumItem(value)
+		if not enumItemSuccess then
+			return false, enumItemErrMsg
+		end
+
+		if value.EnumType == enum then
+			return true
+		else
+			return false, string.format("enum of %s expected, got enum of %s", tostring(enum), tostring(value.EnumType))
+		end
+	end
+end
+
+do
+	local checkWrap = t.tuple(t.callback, t.callback)
+
+--[[**
+		wraps a callback in an assert with checkArgs
+
+		@param callback The function to wrap
+		@param checkArgs The functon to use to check arguments in the assert
+
+		@returns A function that first asserts using checkArgs and then calls callback
+	**--]]
+	function t.wrap(callback, checkArgs)
+		assert(checkWrap(callback, checkArgs))
+		return function(...)
+			assert(checkArgs(...))
+			return callback(...)
+		end
+	end
+end
+
+--[[**
+	asserts a given check
+
+	@param check The function to wrap with an assert
+
+	@returns A function that simply wraps the given check in an assert
+**--]]
+function t.strict(check)
+	return function(...)
+		assert(check(...))
+	end
+end
+
+do
+	local checkChildren = t.map(t.string, t.callback)
+
+--[[**
+		Takes a table where keys are child names and values are functions to check the children against.
+		Pass an instance tree into the function.
+		If at least one child passes each check, the overall check passes.
+
+		Warning! If you pass in a tree with more than one child of the same name, this function will always return false
+
+		@param checkTable The table to check against
+
+		@returns A function that checks an instance tree
+	**--]]
+	function t.children(checkTable)
+		assert(checkChildren(checkTable))
+
+		return function(value)
+			local instanceSuccess, instanceErrMsg = t.Instance(value)
+			if not instanceSuccess then
+				return false, instanceErrMsg or ""
+			end
+
+			local childrenByName = {}
+			for _, child in ipairs(value:GetChildren()) do
+				local name = child.Name
+				if checkTable[name] then
+					if childrenByName[name] then
+						return false, string.format("Cannot process multiple children with the same name %q", name)
+					end
+
+					childrenByName[name] = child
+				end
+			end
+
+			for name, check in pairs(checkTable) do
+				local success, errMsg = check(childrenByName[name])
+				if not success then
+					return false, string.format("[%s.%s] %s", value:GetFullName(), name, errMsg or "")
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+return t
+]]></string>
+      </Properties>
+      <Item class="ModuleScript" referent="19">
+        <Properties>
+          <string name="Name">init.spec</string>
+          <string name="Source">return function()
+	local t = require(script.Parent)
+
+	it("should support basic types", function()
+		assert(t.any(""))
+		assert(t.boolean(true))
+		assert(t.none(nil))
+		assert(t.number(1))
+		assert(t.string("foo"))
+		assert(t.table({}))
+
+		assert(not (t.any(nil)))
+		assert(not (t.boolean("true")))
+		assert(not (t.none(1)))
+		assert(not (t.number(true)))
+		assert(not (t.string(true)))
+		assert(not (t.table(82)))
+	end)
+
+	it("should support special number types", function()
+		local maxTen = t.numberMax(10)
+		local minTwo = t.numberMin(2)
+		local maxTenEx = t.numberMaxExclusive(10)
+		local minTwoEx = t.numberMinExclusive(2)
+		local constrainedEightToEleven = t.numberConstrained(8, 11)
+		local constrainedEightToElevenEx = t.numberConstrainedExclusive(8, 11)
+
+		assert(maxTen(5))
+		assert(maxTen(10))
+		assert(not (maxTen(11)))
+		assert(not (maxTen()))
+
+		assert(minTwo(5))
+		assert(minTwo(2))
+		assert(not (minTwo(1)))
+		assert(not (minTwo()))
+
+		assert(maxTenEx(5))
+		assert(maxTenEx(9))
+		assert(not (maxTenEx(10)))
+		assert(not (maxTenEx()))
+
+		assert(minTwoEx(5))
+		assert(minTwoEx(3))
+		assert(not (minTwoEx(2)))
+		assert(not (minTwoEx()))
+
+		assert(not (constrainedEightToEleven(7)))
+		assert(constrainedEightToEleven(8))
+		assert(constrainedEightToEleven(9))
+		assert(constrainedEightToEleven(11))
+		assert(not (constrainedEightToEleven(12)))
+		assert(not (constrainedEightToEleven()))
+
+		assert(not (constrainedEightToElevenEx(7)))
+		assert(not (constrainedEightToElevenEx(8)))
+		assert(constrainedEightToElevenEx(9))
+		assert(not (constrainedEightToElevenEx(11)))
+		assert(not (constrainedEightToElevenEx(12)))
+		assert(not (constrainedEightToElevenEx()))
+	end)
+
+	it("should support optional types", function()
+		local check = t.optional(t.string)
+		assert(check(""))
+		assert(check())
+		assert(not (check(1)))
+	end)
+
+	it("should support tuple types", function()
+		local myTupleCheck = t.tuple(t.number, t.string, t.optional(t.number))
+		assert(myTupleCheck(1, "2", 3))
+		assert(myTupleCheck(1, "2"))
+		assert(not (myTupleCheck(1, "2", "3")))
+	end)
+
+	it("should support union types", function()
+		local numberOrString = t.union(t.number, t.string)
+		assert(numberOrString(1))
+		assert(numberOrString("1"))
+		assert(not (numberOrString(nil)))
+	end)
+
+	it("should support literal types", function()
+		local checkSingle = t.literal("foo")
+		local checkUnion = t.union(t.literal("foo"), t.literal("bar"), t.literal("oof"))
+
+		assert(checkSingle("foo"))
+		assert(checkUnion("foo"))
+		assert(checkUnion("bar"))
+		assert(checkUnion("oof"))
+
+		assert(not (checkSingle("FOO")))
+		assert(not (checkUnion("FOO")))
+		assert(not (checkUnion("BAR")))
+		assert(not (checkUnion("OOF")))
+	end)
+
+	it("should support multiple literal types", function()
+		local checkSingle = t.literal("foo")
+		local checkUnion = t.literal("foo", "bar", "oof")
+
+		assert(checkSingle("foo"))
+		assert(checkUnion("foo"))
+		assert(checkUnion("bar"))
+		assert(checkUnion("oof"))
+
+		assert(not (checkSingle("FOO")))
+		assert(not (checkUnion("FOO")))
+		assert(not (checkUnion("BAR")))
+		assert(not (checkUnion("OOF")))
+	end)
+
+	it("should support intersection types", function()
+		local integerMax5000 = t.intersection(t.integer, t.numberMax(5000))
+		assert(integerMax5000(1))
+		assert(not (integerMax5000(5001)))
+		assert(not (integerMax5000(1.1)))
+		assert(not (integerMax5000("1")))
+	end)
+
+	describe("array", function()
+		it("should support array types", function()
+			local stringArray = t.array(t.string)
+			local anyArray = t.array(t.any)
+			local stringValues = t.values(t.string)
+			assert(not (anyArray("foo")))
+			assert(anyArray({1, "2", 3}))
+			assert(not (stringArray({1, "2", 3})))
+			assert(not (stringArray()))
+			assert(not (stringValues()))
+			assert(anyArray({"1", "2", "3"}, t.string))
+			assert(not (anyArray({
+				foo = "bar"
+			})))
+			assert(not (anyArray({
+				[1] = "non",
+				[5] = "sequential"
+			})))
+		end)
+
+		it("should not be fooled by sparse arrays", function()
+			local anyArray = t.array(t.any)
+
+			assert(not (anyArray({
+				[1] = 1,
+				[2] = 2,
+				[4] = 4,
+			})))
+		end)
+	end)
+
+	it("should support map types", function()
+		local stringNumberMap = t.map(t.string, t.number)
+		assert(stringNumberMap({}))
+		assert(stringNumberMap({a = 1}))
+		assert(not (stringNumberMap({[1] = "a"})))
+		assert(not (stringNumberMap({a = "a"})))
+		assert(not (stringNumberMap()))
+	end)
+
+	it("should support set types", function()
+		local stringSet = t.set(t.string)
+		assert(stringSet({}))
+		assert(stringSet({a = true}))
+		assert(not (stringSet({[1] = "a"})))
+		assert(not (stringSet({a = "a"})))
+		assert(not (stringSet({a = false})))
+		assert(not (stringSet()))
+	end)
+
+	it("should support interface types", function()
+		local IVector3 = t.interface({
+			x = t.number,
+			y = t.number,
+			z = t.number,
+		})
+
+		assert(IVector3({
+			w = 0,
+			x = 1,
+			y = 2,
+			z = 3,
+		}))
+
+		assert(not (IVector3({
+			w = 0,
+			x = 1,
+			y = 2,
+		})))
+	end)
+
+	it("should support strict interface types", function()
+		local IVector3 = t.strictInterface({
+			x = t.number,
+			y = t.number,
+			z = t.number,
+		})
+
+		assert(not (IVector3(0)))
+
+		assert(not (IVector3({
+			w = 0,
+			x = 1,
+			y = 2,
+			z = 3,
+		})))
+
+		assert(not (IVector3({
+			w = 0,
+			x = 1,
+			y = 2,
+		})))
+
+		assert(IVector3({
+			x = 1,
+			y = 2,
+			z = 3,
+		}))
+	end)
+
+	it("should support deep interface types", function()
+		local IPlayer = t.interface({
+			name = t.string,
+			inventory = t.interface({
+				size = t.number
+			})
+		})
+
+		assert(IPlayer({
+			name = "TestPlayer",
+			inventory = {
+				size = 1
+			}
+		}))
+
+		assert(not (IPlayer({
+			inventory = {
+				size = 1
+			}
+		})))
+
+		assert(not (IPlayer({
+			name = "TestPlayer",
+			inventory = {
+			}
+		})))
+
+		assert(not (IPlayer({
+			name = "TestPlayer",
+		})))
+	end)
+
+	it("should support deep optional interface types", function()
+		local IPlayer = t.interface({
+			name = t.string,
+			inventory = t.optional(t.interface({
+				size = t.number
+			}))
+		})
+
+		assert(IPlayer({
+			name = "TestPlayer"
+		}))
+
+		assert(not (IPlayer({
+			name = "TestPlayer",
+			inventory = {
+			}
+		})))
+
+		assert(IPlayer({
+			name = "TestPlayer",
+			inventory = {
+				size = 1
+			}
+		}))
+	end)
+
+	it("should support Roblox Instance types", function()
+		local stringValueCheck = t.instanceOf("StringValue")
+		local stringValue = Instance.new("StringValue")
+		local boolValue = Instance.new("BoolValue")
+
+		assert(stringValueCheck(stringValue))
+		assert(not (stringValueCheck(boolValue)))
+		assert(not (stringValueCheck()))
+	end)
+
+	it("should support Roblox Instance types inheritance", function()
+		local guiObjectCheck = t.instanceIsA("GuiObject")
+		local frame = Instance.new("Frame")
+		local textLabel = Instance.new("TextLabel")
+		local stringValue = Instance.new("StringValue")
+
+		assert(guiObjectCheck(frame))
+		assert(guiObjectCheck(textLabel))
+		assert(not (guiObjectCheck(stringValue)))
+		assert(not (guiObjectCheck()))
+	end)
+
+	it("should support Roblox Enum types", function()
+		local sortOrderEnumCheck = t.enum(Enum.SortOrder)
+		assert(t.Enum(Enum.SortOrder))
+		assert(not (t.Enum("Enum.SortOrder")))
+
+		assert(t.EnumItem(Enum.SortOrder.Name))
+		assert(not (t.EnumItem("Enum.SortOrder.Name")))
+
+		assert(sortOrderEnumCheck(Enum.SortOrder.Name))
+		assert(sortOrderEnumCheck(Enum.SortOrder.Custom))
+		assert(not (sortOrderEnumCheck(Enum.EasingStyle.Linear)))
+		assert(not (sortOrderEnumCheck()))
+	end)
+
+	it("should support Roblox RBXScriptSignal", function()
+		assert(t.RBXScriptSignal(game.ChildAdded))
+		assert(not (t.RBXScriptSignal(nil)))
+		assert(not (t.RBXScriptSignal(Vector3.new())))
+	end)
+
+	-- TODO: Add this back when Lemur supports it
+	-- it("should support Roblox RBXScriptConnection", function()
+	-- 	local conn = game.ChildAdded:Connect(function() end)
+	-- 	assert(t.RBXScriptConnection(conn))
+	-- 	assert(not (t.RBXScriptConnection(nil)))
+	-- 	assert(not (t.RBXScriptConnection(Vector3.new())))
+	-- end)
+
+	it("should support wrapping function types", function()
+		local checkFoo = t.tuple(t.string, t.number, t.optional(t.string))
+		local foo = t.wrap(function(a, b, c)
+			local result = string.format("%s %d", a, b)
+			if c then
+				result = result .. " " .. c
+			end
+			return result
+		end, checkFoo)
+
+		assert(not (pcall(foo)))
+		assert(not (pcall(foo, "a")))
+		assert(not (pcall(foo, 2)))
+		assert(pcall(foo, "a", 1))
+		assert(pcall(foo, "a", 1, "b"))
+	end)
+
+	it("should support strict types", function()
+		local myType = t.strict(t.tuple(t.string, t.number))
+		assert(not (pcall(function()
+			myType("a", "b")
+		end)))
+		assert(pcall(function()
+			myType("a", 1)
+		end))
+	end)
+
+	it("should support common OOP types", function()
+		local MyClass = {}
+		MyClass.__index = MyClass
+
+		function MyClass.new()
+			local self = setmetatable({}, MyClass)
+			return self
+		end
+
+		local function instanceOfClass(class)
+			return function(value)
+				local tableSuccess, tableErrMsg = t.table(value)
+				if not tableSuccess then
+					return false, tableErrMsg or ""
+				end
+
+				local mt = getmetatable(value)
+				if not mt or mt.__index ~= class then
+					return false, "bad member of class"
+				end
+
+				return true
+			end
+		end
+
+		local instanceOfMyClass = instanceOfClass(MyClass)
+
+		local myObject = MyClass.new()
+		assert(instanceOfMyClass(myObject))
+		assert(not (instanceOfMyClass({})))
+		assert(not (instanceOfMyClass()))
+	end)
+
+	it("should not treat NaN as numbers", function()
+		assert(t.number(1))
+		assert(not (t.number(0/0)))
+		assert(not (t.number("1")))
+	end)
+
+	it("should not treat numbers as NaN", function()
+		assert(not (t.nan(1)))
+		assert(t.nan(0/0))
+		assert(not (t.nan("1")))
+	end)
+
+	it("should allow union of number and NaN", function()
+		local numberOrNaN = t.union(t.number, t.nan)
+		assert(numberOrNaN(1))
+		assert(numberOrNaN(0/0))
+		assert(not (numberOrNaN("1")))
+	end)
+
+	it("should support non-string keys for interfaces", function()
+		local key = {}
+		local myInterface = t.interface({ [key] = t.number })
+		assert(myInterface({ [key] = 1 }))
+		assert(not (myInterface({ [key] = "1" })))
+	end)
+
+	it("should support failing on non-string keys for strict interfaces", function()
+		local myInterface = t.strictInterface({ a = t.number })
+		assert(not (myInterface({ a = 1, [{}] = 2 })))
+	end)
+
+	it("should support children", function()
+		local myInterface = t.interface({
+			buttonInFrame = t.intersection(t.instanceOf("Frame"), t.children({
+				MyButton = t.instanceOf("ImageButton")
+			}))
+		})
+
+		assert(not (t.children({})(5)))
+		assert(not (myInterface({ buttonInFrame = Instance.new("Frame") })))
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("ImageButton", frame)
+			button.Name = "MyButton"
+			assert(myInterface({ buttonInFrame = frame }))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("ImageButton", frame)
+			button.Name = "NotMyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("TextButton", frame)
+			button.Name = "MyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button1 = Instance.new("ImageButton", frame)
+			button1.Name = "MyButton"
+			local button2 = Instance.new("ImageButton", frame)
+			button2.Name = "MyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+	end)
+
+	it("should support t.instanceOf shorthand", function()
+		local myInterface = t.interface({
+			buttonInFrame = t.instanceOf("Frame", {
+				MyButton = t.instanceOf("ImageButton")
+			})
+		})
+
+		assert(not (t.children({})(5)))
+		assert(not (myInterface({ buttonInFrame = Instance.new("Frame") })))
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("ImageButton", frame)
+			button.Name = "MyButton"
+			assert(myInterface({ buttonInFrame = frame }))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("ImageButton", frame)
+			button.Name = "NotMyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("TextButton", frame)
+			button.Name = "MyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button1 = Instance.new("ImageButton", frame)
+			button1.Name = "MyButton"
+			local button2 = Instance.new("ImageButton", frame)
+			button2.Name = "MyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+	end)
+
+	it("should support t.instanceIsA shorthand", function()
+		local myInterface = t.interface({
+			buttonInFrame = t.instanceIsA("Frame", {
+				MyButton = t.instanceIsA("ImageButton")
+			})
+		})
+
+		assert(not (t.children({})(5)))
+		assert(not (myInterface({ buttonInFrame = Instance.new("Frame") })))
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("ImageButton", frame)
+			button.Name = "MyButton"
+			assert(myInterface({ buttonInFrame = frame }))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("ImageButton", frame)
+			button.Name = "NotMyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button = Instance.new("TextButton", frame)
+			button.Name = "MyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+
+		do
+			local frame = Instance.new("Frame")
+			local button1 = Instance.new("ImageButton", frame)
+			button1.Name = "MyButton"
+			local button2 = Instance.new("ImageButton", frame)
+			button2.Name = "MyButton"
+			assert(not (myInterface({ buttonInFrame = frame })))
+		end
+	end)
+
+	it("should support t.match", function()
+		local check = t.match("%d+")
+		assert(check("123"))
+		assert(not (check("abc")))
+		assert(not (check()))
+	end)
+
+	it("should support t.keyOf", function()
+		local myNewEnum = {
+			OptionA = {},
+			OptionB = {},
+		}
+		local check = t.keyOf(myNewEnum)
+		assert(check("OptionA"))
+		assert(not (check("OptionC")))
+	end)
+
+	it("should support t.valueOf", function()
+		local myNewEnum = {
+			OptionA = {},
+			OptionB = {},
+		}
+		local check = t.valueOf(myNewEnum)
+		assert(check(myNewEnum.OptionA))
+		assert(not (check(1010)))
+	end)
+
+	it("should support t.strictArray", function()
+		local fixedArrayCheck = t.strictArray(t.number, t.number)
+
+		assert(fixedArrayCheck({1, 2}))
+		assert(not fixedArrayCheck({1, 2, 3}))
+		assert(not fixedArrayCheck({10}))
+		assert(not fixedArrayCheck({"Hello", 10}))
+		assert(not fixedArrayCheck({ Foo = "Bar" }))
+
+		local fixedArrayCheck2 = t.strictArray(t.number, t.number, t.optional(t.string))
+
+		assert(fixedArrayCheck2({10, 20}))
+		assert(fixedArrayCheck2({10, 20, "Hello"}))
+		assert(not fixedArrayCheck2({10, 20, 30}))
+	end)
+end</string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="20">
+        <Properties>
+          <string name="Name">ts</string>
+          <string name="Source"><![CDATA[-- t: a runtime typechecker for Roblox
+
+-- regular lua compatibility
+local typeof = typeof or type
+
+local function primitive(typeName)
+	return function(value)
+		local valueType = typeof(value)
+		if valueType == typeName then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+local t = {}
+
+function t.any(value)
+	if value ~= nil then
+		return true
+	else
+		return false
+	end
+end
+
+--Lua primitives
+
+t.boolean = primitive("boolean")
+t.thread = primitive("thread")
+t.callback = primitive("function")
+t["function"] = t.callback
+t.none = primitive("nil")
+t["nil"] = t.none
+t.string = primitive("string")
+t.table = primitive("table")
+t.userdata = primitive("userdata")
+
+function t.number(value)
+	local valueType = typeof(value)
+	if valueType == "number" then
+		if value == value then
+			return true
+		else
+			return false
+		end
+	else
+		return false
+	end
+end
+
+function t.nan(value)
+	if value ~= value then
+		return true
+	else
+		return false
+	end
+end
+
+-- roblox types
+
+t.Axes = primitive("Axes")
+t.BrickColor = primitive("BrickColor")
+t.CFrame = primitive("CFrame")
+t.Color3 = primitive("Color3")
+t.ColorSequence = primitive("ColorSequence")
+t.ColorSequenceKeypoint = primitive("ColorSequenceKeypoint")
+t.DockWidgetPluginGuiInfo = primitive("DockWidgetPluginGuiInfo")
+t.Faces = primitive("Faces")
+t.Instance = primitive("Instance")
+t.NumberRange = primitive("NumberRange")
+t.NumberSequence = primitive("NumberSequence")
+t.NumberSequenceKeypoint = primitive("NumberSequenceKeypoint")
+t.PathWaypoint = primitive("PathWaypoint")
+t.PhysicalProperties = primitive("PhysicalProperties")
+t.Random = primitive("Random")
+t.Ray = primitive("Ray")
+t.Rect = primitive("Rect")
+t.Region3 = primitive("Region3")
+t.Region3int16 = primitive("Region3int16")
+t.TweenInfo = primitive("TweenInfo")
+t.UDim = primitive("UDim")
+t.UDim2 = primitive("UDim2")
+t.Vector2 = primitive("Vector2")
+t.Vector3 = primitive("Vector3")
+t.Vector3int16 = primitive("Vector3int16")
+t.Enum = primitive("Enum")
+t.EnumItem = primitive("EnumItem")
+t.RBXScriptSignal = primitive("RBXScriptSignal")
+t.RBXScriptConnection = primitive("RBXScriptConnection")
+
+function t.literal(...)
+	local size = select("#", ...)
+	if size == 1 then
+		local literal = ...
+		return function(value)
+			if value ~= literal then
+				return false
+			end
+
+			return true
+		end
+	else
+		local literals = {}
+		for i = 1, size do
+			local value = select(i, ...)
+			literals[i] = t.literal(value)
+		end
+
+		return t.union(table.unpack(literals, 1, size))
+	end
+end
+
+t.exactly = t.literal
+
+function t.keyOf(keyTable)
+	local keys = {}
+	local length = 0
+	for key in pairs(keyTable) do
+		length = length + 1
+		keys[length] = key
+	end
+
+	return t.literal(table.unpack(keys, 1, length))
+end
+
+function t.valueOf(valueTable)
+	local values = {}
+	local length = 0
+	for _, value in pairs(valueTable) do
+		length = length + 1
+		values[length] = value
+	end
+
+	return t.literal(table.unpack(values, 1, length))
+end
+
+function t.integer(value)
+	local success = t.number(value)
+	if not success then
+		return false
+	end
+
+	if value % 1 == 0 then
+		return true
+	else
+		return false
+	end
+end
+
+function t.numberMin(min)
+	return function(value)
+		local success = t.number(value)
+		if not success then
+			return false
+		end
+		if value >= min then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+function t.numberMax(max)
+	return function(value)
+		local success = t.number(value)
+		if not success then
+			return false
+		end
+		if value <= max then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+function t.numberMinExclusive(min)
+	return function(value)
+		local success = t.number(value)
+		if not success then
+			return false
+		end
+		if min < value then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+function t.numberMaxExclusive(max)
+	return function(value)
+		local success = t.number(value)
+		if not success then
+			return false
+		end
+		if value < max then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+t.numberPositive = t.numberMinExclusive(0)
+t.numberNegative = t.numberMaxExclusive(0)
+
+function t.numberConstrained(min, max)
+	assert(t.number(min) and t.number(max))
+	local minCheck = t.numberMin(min)
+	local maxCheck = t.numberMax(max)
+	return function(value)
+		local minSuccess = minCheck(value)
+		if not minSuccess then
+			return false
+		end
+
+		local maxSuccess = maxCheck(value)
+		if not maxSuccess then
+			return false
+		end
+
+		return true
+	end
+end
+
+function t.numberConstrainedExclusive(min, max)
+	assert(t.number(min) and t.number(max))
+	local minCheck = t.numberMinExclusive(min)
+	local maxCheck = t.numberMaxExclusive(max)
+	return function(value)
+		local minSuccess = minCheck(value)
+		if not minSuccess then
+			return false
+		end
+
+		local maxSuccess = maxCheck(value)
+		if not maxSuccess then
+			return false
+		end
+
+		return true
+	end
+end
+
+function t.match(pattern)
+	assert(t.string(pattern))
+	return function(value)
+		local stringSuccess = t.string(value)
+		if not stringSuccess then
+			return false
+		end
+
+		if string.match(value, pattern) == nil then
+			return false
+		end
+
+		return true
+	end
+end
+
+function t.optional(check)
+	assert(t.callback(check))
+	return function(value)
+		if value == nil then
+			return true
+		end
+		local success = check(value)
+		if success then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+function t.tuple(...)
+	local checks = { ... }
+	return function(...)
+		local args = { ... }
+		for i, check in ipairs(checks) do
+			local success = check(args[i])
+			if success == false then
+				return false
+			end
+		end
+
+		return true
+	end
+end
+
+function t.keys(check)
+	assert(t.callback(check))
+	return function(value)
+		local tableSuccess = t.table(value)
+		if tableSuccess == false then
+			return false
+		end
+
+		for key in pairs(value) do
+			local success = check(key)
+			if success == false then
+				return false
+			end
+		end
+
+		return true
+	end
+end
+
+function t.values(check)
+	assert(t.callback(check))
+	return function(value)
+		local tableSuccess = t.table(value)
+		if tableSuccess == false then
+			return false
+		end
+
+		for _, val in pairs(value) do
+			local success = check(val)
+			if success == false then
+				return false
+			end
+		end
+
+		return true
+	end
+end
+
+function t.map(keyCheck, valueCheck)
+	assert(t.callback(keyCheck), t.callback(valueCheck))
+	local keyChecker = t.keys(keyCheck)
+	local valueChecker = t.values(valueCheck)
+	return function(value)
+		local keySuccess = keyChecker(value)
+		if not keySuccess then
+			return false
+		end
+
+		local valueSuccess = valueChecker(value)
+		if not valueSuccess then
+			return false
+		end
+
+		return true
+	end
+end
+
+function t.set(valueCheck)
+	return t.map(valueCheck, t.literal(true))
+end
+
+do
+	local arrayKeysCheck = t.keys(t.integer)
+
+	function t.array(check)
+		assert(t.callback(check))
+		local valuesCheck = t.values(check)
+		return function(value)
+			local keySuccess = arrayKeysCheck(value)
+			if keySuccess == false then
+				return false
+			end
+
+			-- # is unreliable for sparse arrays
+			-- Count upwards using ipairs to avoid false positives from the behavior of #
+			local arraySize = 0
+
+			for _ in ipairs(value) do
+				arraySize = arraySize + 1
+			end
+
+			for key in pairs(value) do
+				if key < 1 or key > arraySize then
+					return false
+				end
+			end
+
+			local valueSuccess = valuesCheck(value)
+			if not valueSuccess then
+				return false
+			end
+
+			return true
+		end
+	end
+
+	function t.strictArray(...)
+		local valueTypes = { ... }
+		assert(t.array(t.callback)(valueTypes))
+
+		return function(value)
+			local keySuccess = arrayKeysCheck(value)
+			if keySuccess == false then
+				return false
+			end
+
+			-- If there's more than the set array size, disallow
+			if #valueTypes < #value then
+				return false
+			end
+
+			for idx, typeFn in pairs(valueTypes) do
+				local typeSuccess = typeFn(value[idx])
+				if not typeSuccess then
+					return false
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+do
+	local callbackArray = t.array(t.callback)
+
+	function t.union(...)
+		local checks = { ... }
+		assert(callbackArray(checks))
+
+		return function(value)
+			for _, check in ipairs(checks) do
+				if check(value) then
+					return true
+				end
+			end
+
+			return false
+		end
+	end
+
+	function t.intersection(...)
+		local checks = { ... }
+		assert(callbackArray(checks))
+
+		return function(value)
+			for _, check in ipairs(checks) do
+				local success = check(value)
+				if not success then
+					return false
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+do
+	local checkInterface = t.map(t.any, t.callback)
+
+	function t.interface(checkTable)
+		assert(checkInterface(checkTable))
+		return function(value)
+			local tableSuccess = t.table(value)
+			if tableSuccess == false then
+				return false
+			end
+
+			for key, check in pairs(checkTable) do
+				local success = check(value[key])
+				if success == false then
+					return false
+				end
+			end
+			return true
+		end
+	end
+
+	function t.strictInterface(checkTable)
+		assert(checkInterface(checkTable))
+		return function(value)
+			local tableSuccess = t.table(value)
+			if tableSuccess == false then
+				return false
+			end
+
+			for key, check in pairs(checkTable) do
+				local success = check(value[key])
+				if success == false then
+					return false
+				end
+			end
+
+			for key in pairs(value) do
+				if not checkTable[key] then
+					return false
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+function t.instanceOf(className)
+	assert(t.string(className))
+
+	return function(value)
+		local instanceSuccess = t.Instance(value)
+		if not instanceSuccess then
+			return false
+		end
+
+		if value.ClassName ~= className then
+			return false
+		end
+
+		return true
+	end
+end
+
+t.instance = t.instanceOf
+
+function t.instanceIsA(className)
+	assert(t.string(className))
+
+	return function(value)
+		local instanceSuccess = t.Instance(value)
+		if not instanceSuccess then
+			return false
+		end
+
+		if not value:IsA(className) then
+			return false
+		end
+
+		return true
+	end
+end
+
+function t.enum(enum)
+	assert(t.Enum(enum))
+	return function(value)
+		local enumItemSuccess = t.EnumItem(value)
+		if not enumItemSuccess then
+			return false
+		end
+
+		if value.EnumType == enum then
+			return true
+		else
+			return false
+		end
+	end
+end
+
+do
+	local checkWrap = t.tuple(t.callback, t.callback)
+
+	function t.wrap(callback, checkArgs)
+		assert(checkWrap(callback, checkArgs))
+		return function(...)
+			assert(checkArgs(...))
+			return callback(...)
+		end
+	end
+end
+
+function t.strict(check)
+	return function(...)
+		assert(check(...))
+	end
+end
+
+do
+	local checkChildren = t.map(t.string, t.callback)
+	function t.children(checkTable)
+		assert(checkChildren(checkTable))
+
+		return function(value)
+			local instanceSuccess = t.Instance(value)
+			if not instanceSuccess then
+				return false
+			end
+
+			local childrenByName = {}
+			for _, child in ipairs(value:GetChildren()) do
+				local name = child.Name
+				if checkTable[name] then
+					if childrenByName[name] then
+						return false
+					end
+
+					childrenByName[name] = child
+				end
+			end
+
+			for name, check in pairs(checkTable) do
+				local success = check(childrenByName[name])
+				if not success then
+					return false
+				end
+			end
+
+			return true
+		end
+	end
+end
+
+return { t = t }
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
