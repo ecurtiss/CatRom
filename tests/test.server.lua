@@ -1,24 +1,32 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CatmullRomSpline = require(ReplicatedStorage.CatmullRomSpline)
 
-local Parts = workspace.Folder:GetChildren()
-local Knots = table.create(#Parts)
-for i, part in ipairs(Parts) do
+local NUM_KNOTS = 10
+
+local Knots = table.create(NUM_KNOTS)
+local KnotsFolder = Instance.new("Folder")
+KnotsFolder.Name = "Knots"
+for i = 1, NUM_KNOTS do
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.Size = Vector3.new(1, 1, 1)
+	part.CFrame = CFrame.new(i * 2	, math.random() * 10, math.random() * 2)
+	part.Shape = Enum.PartType.Ball
+	part.Material = Enum.Material.Neon
+	part.Parent = KnotsFolder
 	Knots[i] = part.CFrame
 end
+KnotsFolder.Parent = workspace
 local Chain = CatmullRomSpline.Chain.new(Knots)
-print(Chain)
 
-local Folder = Instance.new("Folder")
-Folder.Name = "SplineParts"
+local PartsFolder = Instance.new("Folder")
+PartsFolder.Name = "SplineParts"
 for i = 0, 100 do
 	local alpha = i / 100
-	local position = Chain:GetPosition(alpha)
-
 	local part = Instance.new("Part")
 	part.Anchored = true
 	part.Size = Vector3.new(1, 1, 1) * 0.5
 	part.CFrame = Chain:GetArcRotCFrame(alpha)
-	part.Parent = Folder
+	part.Parent = PartsFolder
 end
-Folder.Parent = workspace
+PartsFolder.Parent = workspace
