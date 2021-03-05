@@ -1,10 +1,10 @@
--- TODO: Support inputting numbers
--- TODO: Support inputting position arrays (X, Y, Z)
--- TODO: Support inputting arbitrary arrays (n_0, n_1, ..., n_k)
+-- TODO: Support inputting single numbers
+-- TODO: Support inputting arbitrary tuples (n_0, n_1, ..., n_k)
 -- TODO: Support variable caching of GetSplineFromAlpha depending on #splines in chain
 -- TODO: Cache GetArcLengthAlpha
--- TODO: Get nearest point on spline
--- TODO: Get alpha from length
+-- TODO: Add get nearest point on spline
+-- TODO: Add get alpha from length
+-- TODO: Fix name shadowing with alpha. alpha is a spline parameter but also percent along spline
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local t = require(ReplicatedStorage.t)
@@ -152,11 +152,10 @@ local function CFrameToQuaternion(cframe)
 	end
 end
 
----- Math
+---- More math
 local function FuzzyEq(a: number, b: number)
 	return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
 end
-
 local function FuzzyEqVector(v1: Vector2 | Vector3, v2: Vector2 | Vector3)
 	if not FuzzyEq(v1.X, v2.Y) then return false end
 	if not FuzzyEq(v1.Y, v2.Y) then return false end
@@ -165,7 +164,6 @@ local function FuzzyEqVector(v1: Vector2 | Vector3, v2: Vector2 | Vector3)
 	end
 	return true
 end
-
 local function FuzzyEqCFrame(cf1: CFrame, cf2: CFrame)
 	if FuzzyEqVector(cf1.Position, cf2.Position)
 	and FuzzyEqVector(cf1.RightVector, cf2.RightVector)
@@ -194,32 +192,32 @@ local function tSplineKnots(k0: Knot, k1: Knot, k2: Knot, k3: Knot)
 	assert(p0Type(k3))
 end
 
--- methods
+-- constructor
 function CatmullRomSpline.Spline.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alpha: number?, tension: number?)
 	tSplineKnots(k0, k1, k2, k3) -- checks that they are all the same knot type
 	assert(tOptionalUnitInterval(alpha))
 	alpha = alpha or DEFAULT_KNOT_PARAMETERIZATION
 	tension = tension or DEFAULT_TENSION
 
-	local p0, p1, p2, p3, className, metatable
+	local p0, p1, p2, p3 = k0, k1, k2, k3
+	local className, metatable
 	if typeof(k0) == "Vector3" or typeof(k0) == "Vector2" then
-		p0, p1, p2, p3 = k0, k1, k2, k3
 		className = "VectorSpline"
 		metatable = VectorSplineMetatable
 	elseif typeof(k0) == "CFrame" then
-		p0, p1, p2, p3 = k0.Position, k1.Position, k2.Position, k3.Position
+		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
 		className = "CFrameSpline"
 		metatable = CFrameSplineMetatable
 	else
 		error("Invalid knot type: ", typeof(k0))
 	end
 
-	local t0 = 0
+	local t0 = 0 -- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
 	local t1 = (p1 - p0).Magnitude ^ alpha + t0
 	local t2 = (p2 - p1).Magnitude ^ alpha + t1
 	local t3 = (p3 - p2).Magnitude ^ alpha + t2
-	local m1 = (1 - 0) * (t2 - t1) * ((p1 - p0)/(t1 - t0) - (p2 - p0)/(t2 - t0) + (p2 - p1)/(t2 - t1))
-	local m2 = (1 - 0) * (t2 - t1) * ((p2 - p1)/(t2 - t1) - (p3 - p1)/(t3 - t1) + (p3 - p2)/(t3 - t2))
+	local m1 = (1 - tension) * (t2 - t1) * ((p1 - p0)/(t1 - t0) - (p2 - p0)/(t2 - t0) + (p2 - p1)/(t2 - t1))
+	local m2 = (1 - tension) * (t2 - t1) * ((p2 - p1)/(t2 - t1) - (p3 - p1)/(t3 - t1) + (p3 - p2)/(t3 - t2))
 	local a = 2 * (p1 - p2) + m1 + m2
 	local b = 3 * (p2 - p1) - 2*m1 - m2
 	local c = m1
@@ -245,10 +243,10 @@ function CatmullRomSpline.Spline.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alp
 	return self
 end
 
+-- methods
 function VectorSplineMetatable:SolvePosition(alpha: number)
 	return self.a * alpha^3 + self.b * alpha^2 + self.c * alpha + self.d
 end
-
 function VectorSplineMetatable:SolveTangent(alpha: number)
 	local p0, p1, p2, p3 = self.k0, self.k1, self.k2, self.k3
 	if self.ClassName == "CFrameSpline" then
@@ -278,14 +276,12 @@ function VectorSplineMetatable:SolveTangent(alpha: number)
 
 	return cp
 end
-
 function VectorSplineMetatable:SolveCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveTangent(alpha)
 	return CFrame.lookAt(position, position + tangent)
 end
-
 function VectorSplineMetatable:SolveLength(a: number?, b: number?)
 	assert(tOptionalUnitInterval(a))
 	assert(tOptionalUnitInterval(b))
@@ -303,7 +299,6 @@ function VectorSplineMetatable:SolveLength(a: number?, b: number?)
 	end
 	return length
 end
-
 function VectorSplineMetatable:SolveCurvature(alpha: number)
 	local p0, p1, p2, p3 = self.k0, self.k1, self.k2, self.k3
 	if self.ClassName == "CFrameSpline" then
@@ -342,7 +337,6 @@ function VectorSplineMetatable:SolveCurvature(alpha: number)
 end
 
 function CFrameSplineMetatable:SolveRotCFrame(alpha: number)
-	assert(self.ClassName == "CFrameSpline", "Spline points must be CFrames to call SolveRotCFrame.")
 	assert(tUnitInterval(alpha))
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveTangent(alpha)
@@ -358,10 +352,12 @@ function CFrameSplineMetatable:SolveRotCFrame(alpha: number)
 end
 
 ---- Chain
-function CatmullRomSpline.Chain.new(points: {Knot}, tau: number?)
+-- constructor
+function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: number?)
 	assert(#points >= 2, "At least 2 points are needed for a spline chain.")
-	assert(tOptionalUnitInterval(tau))
-	tau = tau or 0
+	assert(tOptionalUnitInterval(alpha))
+	alpha = alpha or DEFAULT_KNOT_PARAMETERIZATION
+	tension = tension or DEFAULT_TENSION
 
 	local numPoints = #points
 	local firstPoint = points[1]
@@ -391,7 +387,8 @@ function CatmullRomSpline.Chain.new(points: {Knot}, tau: number?)
 			points[1],
 			points[2],
 			lastControlPoint,
-			tau
+			alpha,
+			tension
 		)
 		chainLength = firstSpline.Length
 		splines[1] = firstSpline
@@ -401,14 +398,16 @@ function CatmullRomSpline.Chain.new(points: {Knot}, tau: number?)
 			points[1],
 			points[2],
 			points[3],
-			tau
+			alpha,
+			tension
 		)
 		local lastSpline = CatmullRomSpline.Spline.new(
 			points[numPoints - 2],
 			points[numPoints - 1],
 			lastPoint,
 			lastControlPoint,
-			tau
+			alpha,
+			tension
 		)
 		chainLength = firstSpline.Length + lastSpline.Length
 		splines[1] = firstSpline
@@ -419,7 +418,8 @@ function CatmullRomSpline.Chain.new(points: {Knot}, tau: number?)
 				points[i + 1],
 				points[i + 2],
 				points[i + 3],
-				tau
+				alpha,
+				tension
 			)
 			splines[i + 1] = spline
 			chainLength += spline.Length
