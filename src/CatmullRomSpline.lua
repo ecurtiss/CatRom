@@ -9,16 +9,16 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local t = require(ReplicatedStorage.t)
 
+local DEFAULT_TENSION = 0
+local DEFAULT_KNOT_PARAMETERIZATION = 0.5 -- centripetal
 local RIEMANN_STEP = 1e-2
 local EPSILON = 1e-4
 -- local DT = Vector3.new(1, 1, 1) * RIEMANN_STEP
 
 local CatmullRomSpline = {Spline = {}, Chain = {}}
 CatmullRomSpline.Chain.__index = CatmullRomSpline.Chain
-local TupleSplineMetatable = {}
 local VectorSplineMetatable = {}
 local CFrameSplineMetatable = setmetatable({}, VectorSplineMetatable)
-TupleSplineMetatable.__index = TupleSplineMetatable
 VectorSplineMetatable.__index = VectorSplineMetatable
 CFrameSplineMetatable.__index = CFrameSplineMetatable
 
@@ -152,6 +152,30 @@ local function CFrameToQuaternion(cframe)
 	end
 end
 
+---- Math
+local function FuzzyEq(a: number, b: number)
+	return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
+end
+
+local function FuzzyEqVector(v1: Vector2 | Vector3, v2: Vector2 | Vector3)
+	if not FuzzyEq(v1.X, v2.Y) then return false end
+	if not FuzzyEq(v1.Y, v2.Y) then return false end
+	if typeof(v1) == "Vector3" then
+		if not FuzzyEq(v1.Z, v2.Z) then return false end
+	end
+	return true
+end
+
+local function FuzzyEqCFrame(cf1: CFrame, cf2: CFrame)
+	if FuzzyEqVector(cf1.Position, cf2.Position)
+	and FuzzyEqVector(cf1.RightVector, cf2.RightVector)
+	and FuzzyEqVector(cf1.UpVector, cf2.UpVector)
+	and FuzzyEqVector(cf1.LookVector, cf2.LookVector) then
+		return true
+	end
+	return false
+end
+
 ---- Global
 function CatmullRomSpline.SetRiemannStep(riemannStep: number)
 	assert(t.numberMin(0)(riemannStep))
@@ -163,83 +187,70 @@ end
 type Knot = Vector2 | Vector3 | CFrame
 local tUnitInterval = t.numberConstrained(0, 1)
 local tOptionalUnitInterval = t.optional(tUnitInterval)
-local function tSplinePoints(p0, p1, p2, p3) -- checks that they are all the same point type
-	local p0Type = t[typeof(p0)]
-	assert(p0Type(p1))
-	assert(p0Type(p2))
-	assert(p0Type(p3))
+local function tSplineKnots(k0: Knot, k1: Knot, k2: Knot, k3: Knot)
+	local p0Type = t[typeof(k0)]
+	assert(p0Type(k1))
+	assert(p0Type(k2))
+	assert(p0Type(k3))
 end
 
 -- methods
-function CatmullRomSpline.Spline.new(p0: Knot, p1: Knot, p2: Knot, p3: Knot, tau: number?)
-	tSplinePoints(p0, p1, p2, p3)
-	assert(tOptionalUnitInterval(tau))
-	tau = tau or 0 -- default to uniform
+function CatmullRomSpline.Spline.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alpha: number?, tension: number?)
+	tSplineKnots(k0, k1, k2, k3) -- checks that they are all the same knot type
+	assert(tOptionalUnitInterval(alpha))
+	alpha = alpha or DEFAULT_KNOT_PARAMETERIZATION
+	tension = tension or DEFAULT_TENSION
 
-	if typeof(p0) == "Vector3" or typeof(p0) == "Vector2" then
-		local t0 = 0
-		local t1 = (p1 - p0).Magnitude ^ tau + t0
-		local t2 = (p2 - p1).Magnitude ^ tau + t1
-		local t3 = (p3 - p2).Magnitude ^ tau + t2
-
-		local self = setmetatable({
-			ClassName = "VectorSpline",
-			p0 = p0,
-			p1 = p1,
-			p2 = p2,
-			p3 = p3,
-			t1 = t1,
-			t2 = t2,
-			t3 = t3,
-			Length = nil,
-		}, VectorSplineMetatable)
-		self.Length = self:SolveLength()
-		
-		return self
-	elseif typeof(p0) == "CFrame" then
-		local t0 = 0
-		local t1 = (p1.Position - p0.Position).Magnitude ^ tau + t0
-		local t2 = (p2.Position - p1.Position).Magnitude ^ tau + t1
-		local t3 = (p3.Position - p2.Position).Magnitude ^ tau + t2
-
-		local self = setmetatable({
-			ClassName = "CFrameSpline",
-			p0 = p0,
-			p1 = p1,
-			p2 = p2,
-			p3 = p3,
-			t1 = t1,
-			t2 = t2,
-			t3 = t3,
-			Length = nil,
-		}, CFrameSplineMetatable)
-		self.Length = self:SolveLength()
-		
-		return self
+	local p0, p1, p2, p3, className, metatable
+	if typeof(k0) == "Vector3" or typeof(k0) == "Vector2" then
+		p0, p1, p2, p3 = k0, k1, k2, k3
+		className = "VectorSpline"
+		metatable = VectorSplineMetatable
+	elseif typeof(k0) == "CFrame" then
+		p0, p1, p2, p3 = k0.Position, k1.Position, k2.Position, k3.Position
+		className = "CFrameSpline"
+		metatable = CFrameSplineMetatable
+	else
+		error("Invalid knot type: ", typeof(k0))
 	end
+
+	local t0 = 0
+	local t1 = (p1 - p0).Magnitude ^ alpha + t0
+	local t2 = (p2 - p1).Magnitude ^ alpha + t1
+	local t3 = (p3 - p2).Magnitude ^ alpha + t2
+	local m1 = (1 - 0) * (t2 - t1) * ((p1 - p0)/(t1 - t0) - (p2 - p0)/(t2 - t0) + (p2 - p1)/(t2 - t1))
+	local m2 = (1 - 0) * (t2 - t1) * ((p2 - p1)/(t2 - t1) - (p3 - p1)/(t3 - t1) + (p3 - p2)/(t3 - t2))
+	local a = 2 * (p1 - p2) + m1 + m2
+	local b = 3 * (p2 - p1) - 2*m1 - m2
+	local c = m1
+	local d = p1
+
+	local self = setmetatable({
+		ClassName = className,
+		k0 = k0,
+		k1 = k1,
+		k2 = k2,
+		k3 = k3,
+		t1 = t1,
+		t2 = t2,
+		t3 = t3,
+		a = a,
+		b = b,
+		c = c,
+		d = d,
+		Length = nil
+	}, metatable)
+	self.Length = self:SolveLength()
+
+	return self
 end
 
 function VectorSplineMetatable:SolvePosition(alpha: number)
-	local p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
-	if self.ClassName == "CFrameSpline" then
-		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
-	end
-
-	local t0, t1, t2, t3 = 0, self.t1, self.t2, self.t3
-	local s = t1 + alpha * (t2 - t1) -- s instead of t because t is the typechecker :(
-
-	local a1 = (p0 * (t1 - s) + p1 * (s - t0)) / (t1 - t0)
-	local a2 = (p1 * (t2 - s) + p2 * (s - t1)) / (t2 - t1)
-	local a3 = (p2 * (t3 - s) + p3 * (s - t2)) / (t3 - t2)
-	local b1 = (a1 * (t2 - s) + a2 * (s - t0)) / (t2 - t0)
-	local b2 = (a2 * (t3 - s) + a3 * (s - t1)) / (t3 - t1)
-	local c  = (b1 * (t2 - s) + b2 * (s - t1)) / (t2 - t1)
-
-	return c
+	return self.a * alpha^3 + self.b * alpha^2 + self.c * alpha + self.d
 end
 
 function VectorSplineMetatable:SolveTangent(alpha: number)
-	local p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
+	local p0, p1, p2, p3 = self.k0, self.k1, self.k2, self.k3
 	if self.ClassName == "CFrameSpline" then
 		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
 	end
@@ -294,8 +305,7 @@ function VectorSplineMetatable:SolveLength(a: number?, b: number?)
 end
 
 function VectorSplineMetatable:SolveCurvature(alpha: number)
-	assert(t.number(alpha))
-	local p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
+	local p0, p1, p2, p3 = self.k0, self.k1, self.k2, self.k3
 	if self.ClassName == "CFrameSpline" then
 		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
 	end
@@ -337,10 +347,10 @@ function CFrameSplineMetatable:SolveRotCFrame(alpha: number)
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveTangent(alpha)
 	local qw, qx, qy, qz = Squad(
-		CFrameToQuaternion(self.p0),
-		CFrameToQuaternion(self.p1),
-		CFrameToQuaternion(self.p2),
-		CFrameToQuaternion(self.p3),
+		CFrameToQuaternion(self.k0),
+		CFrameToQuaternion(self.k1),
+		CFrameToQuaternion(self.k2),
+		CFrameToQuaternion(self.k3),
 		alpha
 	)
 	local quaternionToCFrame = CFrame.new(0, 0, 0, qx, qy, qz, qw)
@@ -358,17 +368,14 @@ function CatmullRomSpline.Chain.new(points: {Knot}, tau: number?)
 	local lastPoint = points[numPoints]
 	local firstControlPoint, lastControlPoint
 	if typeof(firstPoint) == "Vector3" or typeof(firstPoint) == "Vector2" then
-		if firstPoint:FuzzyEq(lastPoint) then -- loops
+		if FuzzyEqVector(firstPoint, lastPoint) then -- loops
 			firstControlPoint, lastControlPoint = points[numPoints - 1], points[2]
 		else
 			firstControlPoint = points[2]:Lerp(firstPoint, 2)
 			lastControlPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
 		end
 	elseif typeof(firstPoint) == "CFrame" then
-		if firstPoint.Position:FuzzyEq(lastPoint.Position) -- loops
-			and firstPoint.XVector:FuzzyEq(lastPoint.XVector)
-			and firstPoint.YVector:FuzzyEq(lastPoint.YVector)
-			and firstPoint.ZVector:FuzzyEq(lastPoint.ZVector) then
+		if FuzzyEqCFrame(firstPoint, lastPoint) then -- loops
 			firstControlPoint, lastControlPoint = points[numPoints - 1], points[2]
 		else
 			firstControlPoint = points[2]:Lerp(firstPoint, 2)
