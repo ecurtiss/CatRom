@@ -12,6 +12,11 @@
 			"TestEZ": {
 				"$path": "modules/TestEZ"
 			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$ignoreUnknownInstances": true,
+			"$path": "tests"
 		}
 	}
 }
