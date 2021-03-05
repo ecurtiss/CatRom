@@ -1,0 +1,6 @@
+{
+	"name": "CatmullRomSpline",
+	"tree": {
+		"$path": "src"
+	}
+}
