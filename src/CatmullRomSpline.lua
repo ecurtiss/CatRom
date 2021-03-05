@@ -14,6 +14,7 @@ local EPSILON = 1e-4
 -- local DT = Vector3.new(1, 1, 1) * RIEMANN_STEP
 
 local CatmullRomSpline = {Spline = {}, Chain = {}}
+CatmullRomSpline.Chain.__index = CatmullRomSpline.Chain
 local TupleSplineMetatable = {}
 local VectorSplineMetatable = {}
 local CFrameSplineMetatable = setmetatable({}, VectorSplineMetatable)
