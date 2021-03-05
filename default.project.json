@@ -1,6 +1,22 @@
 {
-	"name": "CatmullRomSpline",
+	"name": "CatmullRomSpline tests",
 	"tree": {
-		"$path": "src"
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"$ignoreUnknownInstances": true,
+			"$path": "src",
+			"t": {
+				"$path": "modules/t"
+			},
+			"TestEZ": {
+				"$path": "modules/TestEZ"
+			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$ignoreUnknownInstances": true,
+			"$path": "tests"
+		}
 	}
 }
