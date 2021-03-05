@@ -245,36 +245,10 @@ end
 
 -- methods
 function VectorSplineMetatable:SolvePosition(alpha: number)
-	return self.a * alpha^3 + self.b * alpha^2 + self.c * alpha + self.d
+	return self.a*alpha^3 + self.b*alpha^2 + self.c*alpha + self.d
 end
 function VectorSplineMetatable:SolveTangent(alpha: number)
-	local p0, p1, p2, p3 = self.k0, self.k1, self.k2, self.k3
-	if self.ClassName == "CFrameSpline" then
-		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
-	end
-	local t0, t1, t2, t3 = 0, self.t1, self.t2, self.t3
-	local s = t1 + alpha * (t2 - t1) -- s instead of t because t is the typechecker :(
-
-	local d1 = t1 - t0 -- d for denominator
-	local d2 = t2 - t1
-	local d3 = t3 - t2
-	local d4 = t2 - t0
-	local d5 = t3 - t1
-
-	local a1 = (p0 * (t1 - s) + p1 * (s - t0)) / d1
-	local a2 = (p1 * (t2 - s) + p2 * (s - t1)) / d2
-	local a3 = (p2 * (t3 - s) + p3 * (s - t2)) / d3
-	local b1 = (a1 * (t2 - s) + a2 * (s - t0)) / d4
-	local b2 = (a2 * (t3 - s) + a3 * (s - t1)) / d5
-
-	local a1p = (p1 - p0) / d1 -- p for prime (derivative)
-	local a2p = (p2 - p1) / d2
-	local a3p = (p3 - p2) / d3
-	local b1p = (t2*a1p - t0*a2p + a2 - a1 + s*(a2p - a1p)) / d4
-	local b2p = (t3*a2p - t1*a3p + a3 - a2 + s*(a3p - a2p)) / d5
-	local cp  = (t2*b1p - t1*b2p + b2 - b1 + s*(b2p - b1p)) / d2
-
-	return cp
+	return 3*self.a*alpha^2 + 2*self.b*alpha + self.c
 end
 function VectorSplineMetatable:SolveCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
