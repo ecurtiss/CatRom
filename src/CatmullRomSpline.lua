@@ -185,7 +185,7 @@ end
 type Knot = Vector2 | Vector3 | CFrame
 local tUnitInterval = t.numberConstrained(0, 1)
 local tOptionalUnitInterval = t.optional(tUnitInterval)
-local function tSplineKnots(k0: Knot, k1: Knot, k2: Knot, k3: Knot)
+local function tKnots(k0: Knot, k1: Knot, k2: Knot, k3: Knot)
 	local p0Type = t[typeof(k0)]
 	assert(p0Type(k1))
 	assert(p0Type(k2))
@@ -194,7 +194,7 @@ end
 
 -- constructor
 function CatmullRomSpline.Spline.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alpha: number?, tension: number?)
-	tSplineKnots(k0, k1, k2, k3) -- checks that they are all the same knot type
+	tKnots(k0, k1, k2, k3) -- check that they are all the same knot type
 	assert(tOptionalUnitInterval(alpha))
 	alpha = alpha or DEFAULT_KNOT_PARAMETERIZATION
 	tension = tension or DEFAULT_TENSION
