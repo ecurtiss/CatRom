@@ -11,16 +11,15 @@ local t = require(ReplicatedStorage.t)
 
 local DEFAULT_TENSION = 0
 local DEFAULT_KNOT_PARAMETERIZATION = 0.5 -- centripetal
-local RIEMANN_STEP = 1e-2
+local RIEMANN_STEP = 1e-3
 local EPSILON = 1e-4
 -- local DT = Vector3.new(1, 1, 1) * RIEMANN_STEP
 
-local CatmullRomSpline = {Spline = {}, Chain = {}}
-CatmullRomSpline.Chain.__index = CatmullRomSpline.Chain
-local VectorSplineMetatable = {}
-local CFrameSplineMetatable = setmetatable({}, VectorSplineMetatable)
-VectorSplineMetatable.__index = VectorSplineMetatable
-CFrameSplineMetatable.__index = CFrameSplineMetatable
+local SplineMetatable = {}
+SplineMetatable.__index = SplineMetatable
+local ChainMetatable = {}
+ChainMetatable.__index = ChainMetatable
+local CatmullRomSpline = {Spline = SplineMetatable, Chain = ChainMetatable}
 
 ---- Spherical quadrangle interpolation (SQUAD) (by fractality)
 local function InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
@@ -174,12 +173,6 @@ local function FuzzyEqCFrame(cf1: CFrame, cf2: CFrame)
 	return false
 end
 
----- Global
-function CatmullRomSpline.SetRiemannStep(riemannStep: number)
-	assert(t.numberMin(0)(riemannStep))
-	RIEMANN_STEP = riemannStep
-end
-
 ---- Spline
 -- types
 type Knot = Vector2 | Vector3 | CFrame
@@ -193,26 +186,23 @@ local function tKnots(k0: Knot, k1: Knot, k2: Knot, k3: Knot)
 end
 
 -- constructor
-function CatmullRomSpline.Spline.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alpha: number?, tension: number?)
-	tKnots(k0, k1, k2, k3) -- check that they are all the same knot type
+function SplineMetatable.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alpha: number?, tension: number?)
 	assert(tOptionalUnitInterval(alpha))
+	tKnots(k0, k1, k2, k3)
 	alpha = alpha or DEFAULT_KNOT_PARAMETERIZATION
 	tension = tension or DEFAULT_TENSION
-
-	local p0, p1, p2, p3 = k0, k1, k2, k3
-	local className, metatable
+	
+	local p0, p1, p2, p3, className
 	if typeof(k0) == "Vector3" or typeof(k0) == "Vector2" then
+		p0, p1, p2, p3 = k0, k1, k2, k3
 		className = "VectorSpline"
-		metatable = VectorSplineMetatable
 	elseif typeof(k0) == "CFrame" then
-		p0, p1, p2, p3 = p0.Position, p1.Position, p2.Position, p3.Position
+		p0, p1, p2, p3 = k0.Position, k1.Position, k2.Position, k3.Position
 		className = "CFrameSpline"
-		metatable = CFrameSplineMetatable
-	else
-		error("Invalid knot type: ", typeof(k0))
 	end
 
-	local t0 = 0 -- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
+	-- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
+	local t0 = 0
 	local t1 = (p1 - p0).Magnitude ^ alpha + t0
 	local t2 = (p2 - p1).Magnitude ^ alpha + t1
 	local t3 = (p3 - p2).Magnitude ^ alpha + t2
@@ -234,33 +224,58 @@ function CatmullRomSpline.Spline.new(k0: Knot, k1: Knot, k2: Knot, k3: Knot, alp
 		b = b,
 		c = c,
 		d = d
-	}, metatable)
+	}, SplineMetatable)
 	self.Length = self:SolveLength()
 
 	return self
 end
 
+-- internal methods
+function SplineMetatable:_ToArcLengthAlpha(alpha: number)
+	if alpha == 0 or alpha == 1 then return alpha end
+
+	local length = self.Length
+	local goalLength = length * alpha
+	local runningLength = 0
+	local lastPosition = self:SolvePosition(0)
+
+	for i = 1, 1 / RIEMANN_STEP do
+		i *= RIEMANN_STEP
+		local thisPosition = self:SolvePosition(i)
+		runningLength += (thisPosition - lastPosition).Magnitude
+		--runningLength += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
+		--runningLength += (dp / DT).Magnitude * RIEMANN_STEP
+		lastPosition = thisPosition
+		if runningLength >= goalLength then
+			return i -- FIX: Snaps every 1/RIEMANN_STEP
+		end
+	end
+end
+
 -- methods
-function VectorSplineMetatable:SolvePosition(alpha: number)
+function SplineMetatable:SolvePosition(alpha: number)
 	return self.a*alpha^3 + self.b*alpha^2 + self.c*alpha + self.d
 end
-function VectorSplineMetatable:SolveVelocity(alpha: number)
+function SplineMetatable:SolveVelocity(alpha: number)
 	return 3*self.a*alpha^2 + 2*self.b*alpha + self.c
 end
-function VectorSplineMetatable:SolveAcceleration(alpha: number)
+function SplineMetatable:SolveAcceleration(alpha: number)
 	return 6*self.a*alpha + 2*self.b
 end
-function VectorSplineMetatable:SolveUnitTangent(alpha: number)
+function SplineMetatable:SolveUnitTangent(alpha: number)
 	return self:SolveVelocity(alpha).Unit -- T(t) = r'(t) / |r'(t)|
 end
-function VectorSplineMetatable:SolveUnitNormal(alpha: number)
+function SplineMetatable:SolveUnitNormal(alpha: number)
 	local rp = self:SolveVelocity(alpha) -- r'(t)
 	local rpp = self:SolveAcceleration(alpha) -- r''(t)
 	-- N(t) = T'(t) / |T'(t)| =  (r'(t) / |r'(t)|)' / |(r'(t) / |r'(t)|)'|
 	-- the following is equivalent to the rightmost expression
 	return (rpp / rp.Magnitude - rp * rp:Dot(rpp) / rp.Magnitude^3).Unit
 end
-function VectorSplineMetatable:SolveCurvature(alpha: number)
+function SplineMetatable:SolveUnitBinormal(alpha: normal)
+	return self:SolveUnitTangent(alpha):Cross(self:SolveUnitTangent(alpha))
+end
+function SplineMetatable:SolveCurvature(alpha: number)
 	local rp = self:SolveVelocity(alpha)
 	local rpp = self:SolveAcceleration(alpha)
 	local tangentp = rpp / rp.Magnitude - rp * rp:Dot(rpp) / rp.Magnitude^3
@@ -270,13 +285,13 @@ function VectorSplineMetatable:SolveCurvature(alpha: number)
 	
 	return curvature, unitNormal
 end
-function VectorSplineMetatable:SolveCFrame(alpha: number)
+function SplineMetatable:SolveCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveVelocity(alpha)
 	return CFrame.lookAt(position, position + tangent)
 end
-function VectorSplineMetatable:SolveLength(a: number?, b: number?)
+function SplineMetatable:SolveLength(a: number?, b: number?)
 	assert(tOptionalUnitInterval(a))
 	assert(tOptionalUnitInterval(b))
 	a = a or 0
@@ -293,30 +308,69 @@ function VectorSplineMetatable:SolveLength(a: number?, b: number?)
 	end
 	return length
 end
-
-function CFrameSplineMetatable:SolveRotCFrame(alpha: number)
+function SplineMetatable:SolveRotCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
+
+	local cf0, cf1, cf2, cf3 do
+		if self.ClassName == "CFrameSpline" then
+			cf0, cf1, cf2, cf3 = self.k0, self.k1, self.k2, self.k3
+		elseif self.ClassName == "VectorSpline" then
+			cf0, cf1, cf2, cf3 = CFrame.new(self.k0), CFrame.new(self.k1), CFrame.new(self.k2), CFrame.new(self.k3)
+		end
+	end
+
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveVelocity(alpha)
 	local qw, qx, qy, qz = Squad(
-		CFrameToQuaternion(self.k0),
-		CFrameToQuaternion(self.k1),
-		CFrameToQuaternion(self.k2),
-		CFrameToQuaternion(self.k3),
+		CFrameToQuaternion(cf0),
+		CFrameToQuaternion(cf1),
+		CFrameToQuaternion(cf2),
+		CFrameToQuaternion(cf3),
 		alpha
 	)
 	local quaternionToCFrame = CFrame.new(0, 0, 0, qx, qy, qz, qw)
 	return CFrame.lookAt(position, position + tangent, quaternionToCFrame.UpVector)
 end
 
+-- arc methods
+do
+	local arcMethods = {}
+
+	for methodName, method in pairs(SplineMetatable) do
+		if string.sub(methodName, 1, 5) == "Solve" then
+			arcMethods["SolveArc" .. string.sub(methodName, 6)] = function(self, ...)
+				local inputs = table.pack(...)
+				for i, alpha in ipairs(inputs) do
+					inputs[i] = self:_ToArcLengthAlpha(alpha)
+				end
+				return method(self, table.unpack(inputs))
+			end
+		end
+	end
+
+	for methodName, method in pairs(arcMethods) do
+		SplineMetatable[methodName] = method
+	end
+end
+
 ---- Chain
 -- constructor
-function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: number?)
-	assert(#points >= 2, "At least 2 points are needed for a spline chain.")
+function ChainMetatable.new(points: {Knot}, alpha: number?, tension: number?)
+	assert(#points >= 2, "At least 2 points are required to create a CatmullRomSpline.")
 	assert(tOptionalUnitInterval(alpha))
+	local knotType = typeof(points[1])
+	for _, knot in ipairs(points) do
+		if typeof(knot) ~= knotType then
+			error(string.format("%s%s",
+				"All points must be of the same type. ",
+				"Expected \"" .. knotType .. "\", got \"" .. typeof(knot) .. "\"."
+			))
+		end
+	end
+
 	alpha = alpha or DEFAULT_KNOT_PARAMETERIZATION
 	tension = tension or DEFAULT_TENSION
-
+	
 	local numPoints = #points
 	local firstPoint = points[1]
 	local lastPoint = points[numPoints]
@@ -340,7 +394,7 @@ function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: num
 	local splines = table.create(numPoints - 1)
 	local chainLength
 	if numPoints == 2 then
-		local firstSpline = CatmullRomSpline.Spline.new(
+		local firstSpline = SplineMetatable.new(
 			firstControlPoint,
 			points[1],
 			points[2],
@@ -351,7 +405,7 @@ function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: num
 		chainLength = firstSpline.Length
 		splines[1] = firstSpline
 	else
-		local firstSpline = CatmullRomSpline.Spline.new(
+		local firstSpline = SplineMetatable.new(
 			firstControlPoint,
 			points[1],
 			points[2],
@@ -359,7 +413,7 @@ function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: num
 			alpha,
 			tension
 		)
-		local lastSpline = CatmullRomSpline.Spline.new(
+		local lastSpline = SplineMetatable.new(
 			points[numPoints - 2],
 			points[numPoints - 1],
 			lastPoint,
@@ -371,7 +425,7 @@ function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: num
 		splines[1] = firstSpline
 		splines[numPoints - 1] = lastSpline
 		for i = 1, numPoints - 3 do
-			local spline = CatmullRomSpline.Spline.new(
+			local spline = SplineMetatable.new(
 				points[i],
 				points[i + 1],
 				points[i + 2],
@@ -406,85 +460,50 @@ function CatmullRomSpline.Chain.new(points: {Knot}, alpha: number?, tension: num
 		Splines = splines,
 		SplineFromAlphaCache = splineFromAlphaCache,
 		SplineIntervals = splineIntervals
-	}, CatmullRomSpline.Chain)
+	}, ChainMetatable)
 end
 
 -- internal methods
-function CatmullRomSpline.Chain:_GetSplineFromAlpha(alpha)
-	local startAlpha = math.floor(alpha * 100) / 100
-	local startInterval = self.SplineFromAlphaCache[string.format("%.2f", startAlpha)]
-	local numIntervals = #self.SplineIntervals
-	for i = startInterval, numIntervals do
-		local splineInterval = self.SplineIntervals[i]
+function ChainMetatable:_GetSplineFromAlpha(alpha: number)
+	local startInterval = self.SplineFromAlphaCache[string.format("%.2f", alpha)]
+	local splineIntervals = self.SplineIntervals
+
+	for i = startInterval, #splineIntervals do
+		local splineInterval = splineIntervals[i]
 		if alpha >= splineInterval.Start and alpha <= splineInterval.End then
-			local splineAlpha =
-				(alpha - splineInterval.Start) / (splineInterval.End - splineInterval.Start)
+			local splineAlpha = (alpha - splineInterval.Start) / (splineInterval.End - splineInterval.Start)
 			return self.Splines[i], splineAlpha, splineInterval
 		end
 	end
 end
-function CatmullRomSpline.Chain:_GetArcLengthAlpha(alpha)
-	if alpha == 0 or alpha == 1 then return alpha end
 
-	local length = self.Length
-	local spline, _, splineInterval = self:_GetSplineFromAlpha(alpha)
-	local goalLength = length * alpha
-	local runningLength = length * splineInterval.Start
-	local lastPosition = spline:SolvePosition(0)
+-- methods (Chain wraps every SplineMetatable method)
+function ChainMetatable:SolveLength(a: number?, b: number?)
+	if not a and not b then return self.Length end
+	assert(tOptionalUnitInterval(a))
+	assert(tOptionalUnitInterval(b))
+	a = a or 0
+	b = b or 1
+	local length = 0
+	-- TODO: implement this
+end
+function ChainMetatable:SolveArcLength(a: number?, b: number?)
+	if not a and not b then return self.Length end
+	assert(tOptionalUnitInterval(a))
+	assert(tOptionalUnitInterval(b))
+	a = a or 0
+	b = b or 1
+	local length = 0
+	-- TODO: implement this
+end
 
-	for i = 1, 1 / RIEMANN_STEP do
-		i *= RIEMANN_STEP
-		local thisPosition = spline:SolvePosition(i)
-		runningLength += (thisPosition - lastPosition).Magnitude
-		--runningLength += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
-		--runningLength += (dp / DT).Magnitude * RIEMANN_STEP
-		lastPosition = thisPosition
-		if runningLength >= goalLength then
-			return splineInterval.Start + i * (splineInterval.End - splineInterval.Start)
+for methodName, _ in pairs(SplineMetatable) do
+	if string.sub(methodName, 1, 5) == "Solve" and not ChainMetatable[methodName] then
+		ChainMetatable[methodName] = function(self, alpha: number)
+			local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
+			return spline[methodName](spline, splineAlpha)
 		end
 	end
-end
-
--- methods
-function CatmullRomSpline.Chain:GetPosition(alpha: number)
-	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
-	return spline:SolvePosition(splineAlpha)
-end
-function CatmullRomSpline.Chain:GetCFrame(alpha: number)
-	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
-	return spline:SolveCFrame(splineAlpha)
-end
-function CatmullRomSpline.Chain:GetRotCFrame(alpha: number)
-	assert(tUnitInterval(alpha))
-	assert(self.ClassName == "CFrameSplineChain",
-		"Spline chain points must be CFrames to call GetRotCFrame.")
-	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
-	return spline:SolveRotCFrame(splineAlpha)
-end
-function CatmullRomSpline.Chain:GetCurvature(alpha: number)
-	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
-	return spline:SolveCurvature(splineAlpha)
-end
-function CatmullRomSpline.Chain:GetArcPosition(alpha: number)
-	assert(tUnitInterval(alpha))
-	return self:GetPosition(self:_GetArcLengthAlpha(alpha))
-end
-function CatmullRomSpline.Chain:GetArcCFrame(alpha: number)
-	assert(tUnitInterval(alpha))
-	return self:GetCFrame(self:_GetArcLengthAlpha(alpha))
-end
-function CatmullRomSpline.Chain:GetArcRotCFrame(alpha: number)
-	assert(tUnitInterval(alpha))
-	assert(self.ClassName == "CFrameSplineChain",
-		"Spline chain points must be CFrames to call GetArcRotCFrame.")
-	return self:GetRotCFrame(self:_GetArcLengthAlpha(alpha))
-end
-function CatmullRomSpline.Chain:GetArcCurvature(alpha: number)
-	assert(tUnitInterval(alpha))
-	return self:GetCurvature(self:_GetArcLengthAlpha(alpha))
 end
 
 return CatmullRomSpline
