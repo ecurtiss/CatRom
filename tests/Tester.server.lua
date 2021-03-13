@@ -17,6 +17,6 @@ local TestEZ = require(REPLICATED_STORAGE.TestEZ)
 --     script.Parent:FindFirstChild("Unorganized.spec")
 -- })
 
-TestEZ.TestBootstrap:run({
-    script.Parent:FindFirstChild("CatmullRomSplineTest")
-})
+-- TestEZ.TestBootstrap:run({
+--     script.Parent:FindFirstChild("CatmullRomSplineTest")
+-- })
