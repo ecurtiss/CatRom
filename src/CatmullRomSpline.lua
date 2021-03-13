@@ -5,6 +5,7 @@
 -- TODO: Add get nearest point on spline
 -- TODO: Add get alpha from length
 -- TODO: Fix name shadowing with alpha. alpha is a spline parameter but also percent along spline
+-- FIX: Shitty transitions between nodes on Arc methods
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local t = require(ReplicatedStorage.t)
@@ -21,7 +22,8 @@ local ChainMetatable = {}
 ChainMetatable.__index = ChainMetatable
 local CatmullRomSpline = {Spline = SplineMetatable, Chain = ChainMetatable}
 
----- Spherical quadrangle interpolation (SQUAD) (by fractality)
+---- Math
+---- spherical quadrangle interpolation (SQUAD) (by fractality)
 local function InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
 	local w = w0*w1 + x0*x1 + y0*y1 + z0*z1
 	local x = w0*x1 - x0*w1 + y0*z1 - z0*y1
@@ -151,26 +153,36 @@ local function CFrameToQuaternion(cframe)
 	end
 end
 
----- More math
-local function FuzzyEq(a: number, b: number)
-	return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
-end
-local function FuzzyEqVector(v1: Vector2 | Vector3, v2: Vector2 | Vector3)
-	if not FuzzyEq(v1.X, v2.Y) then return false end
-	if not FuzzyEq(v1.Y, v2.Y) then return false end
-	if typeof(v1) == "Vector3" then
-		if not FuzzyEq(v1.Z, v2.Z) then return false end
+local function FuzzyEq(a, b)
+	local function fuzzyEqNumber(n1: number, n2: number)
+		return n1 == n2 or math.abs(n1 - n2) <= (math.abs(n1) + 1) * EPSILON
 	end
-	return true
-end
-local function FuzzyEqCFrame(cf1: CFrame, cf2: CFrame)
-	if FuzzyEqVector(cf1.Position, cf2.Position)
-	and FuzzyEqVector(cf1.RightVector, cf2.RightVector)
-	and FuzzyEqVector(cf1.UpVector, cf2.UpVector)
-	and FuzzyEqVector(cf1.LookVector, cf2.LookVector) then
+	local function fuzzyEqVector(v1: Vector2 | Vector3, v2: Vector2 | Vector3)
+		if not fuzzyEqNumber(v1.X, v2.X) then return false end
+		if not fuzzyEqNumber(v1.Y, v2.Y) then return false end
+		if typeof(v1) == "Vector3" then
+			if not fuzzyEqNumber(v1.Z, v2.Z) then return false end
+		end
 		return true
 	end
-	return false
+	local function fuzzyEqCFrame(cf1: CFrame, cf2: CFrame)
+		if fuzzyEqVector(cf1.Position, cf2.Position)
+		and fuzzyEqVector(cf1.RightVector, cf2.RightVector)
+		and fuzzyEqVector(cf1.UpVector, cf2.UpVector)
+		and fuzzyEqVector(cf1.LookVector, cf2.LookVector) then
+			return true
+		end
+		return false
+	end
+
+	assert(a ~= b, "Attempting to compare \"" .. typeof(a) .. "\" with \"" .. typeof(b) .. "\".")
+	if typeof(a) == "number" then
+		return fuzzyEqNumber(a, b)
+	elseif typeof(a) == "Vector2" or typeof(a) == "Vector3" then
+		return fuzzyEqVector(a, b)
+	elseif typeof(a) == "CFrame" then
+		return fuzzyEqCFrame(a, b)
+	end
 end
 
 ---- Spline
@@ -272,7 +284,7 @@ function SplineMetatable:SolveUnitNormal(alpha: number)
 	-- the following is equivalent to the rightmost expression
 	return (rpp / rp.Magnitude - rp * rp:Dot(rpp) / rp.Magnitude^3).Unit
 end
-function SplineMetatable:SolveUnitBinormal(alpha: normal)
+function SplineMetatable:SolveUnitBinormal(alpha: number)
 	return self:SolveUnitTangent(alpha):Cross(self:SolveUnitTangent(alpha))
 end
 function SplineMetatable:SolveCurvature(alpha: number)
@@ -286,7 +298,6 @@ function SplineMetatable:SolveCurvature(alpha: number)
 	return curvature, unitNormal
 end
 function SplineMetatable:SolveCFrame(alpha: number)
-	assert(tUnitInterval(alpha))
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveVelocity(alpha)
 	return CFrame.lookAt(position, position + tangent)
@@ -374,68 +385,27 @@ function ChainMetatable.new(points: {Knot}, alpha: number?, tension: number?)
 	local numPoints = #points
 	local firstPoint = points[1]
 	local lastPoint = points[numPoints]
-	local firstControlPoint, lastControlPoint
-	if typeof(firstPoint) == "Vector3" or typeof(firstPoint) == "Vector2" then
-		if FuzzyEqVector(firstPoint, lastPoint) then -- loops
-			firstControlPoint, lastControlPoint = points[numPoints - 1], points[2]
-		else
-			firstControlPoint = points[2]:Lerp(firstPoint, 2)
-			lastControlPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
-		end
-	elseif typeof(firstPoint) == "CFrame" then
-		if FuzzyEqCFrame(firstPoint, lastPoint) then -- loops
-			firstControlPoint, lastControlPoint = points[numPoints - 1], points[2]
-		else
-			firstControlPoint = points[2]:Lerp(firstPoint, 2)
-			lastControlPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
-		end
+	if FuzzyEq(firstPoint, lastPoint) then -- loops
+		table.insert(points, points[2]) -- last control point
+		table.insert(points, 1, points[numPoints - 1]) -- first control point
+	else
+		table.insert(points, points[numPoints - 1]:Lerp(lastPoint, 2)) -- last control point
+		table.insert(points, 1, points[2]:Lerp(firstPoint, 2)) -- first control point
 	end
 
-	local splines = table.create(numPoints - 1)
-	local chainLength
-	if numPoints == 2 then
-		local firstSpline = SplineMetatable.new(
-			firstControlPoint,
-			points[1],
-			points[2],
-			lastControlPoint,
+	local splines = table.create(numPoints + 1)
+	local chainLength = 0
+	for i = 1, numPoints - 1 do
+		local spline = SplineMetatable.new(
+			points[i],
+			points[i + 1],
+			points[i + 2],
+			points[i + 3],
 			alpha,
 			tension
 		)
-		chainLength = firstSpline.Length
-		splines[1] = firstSpline
-	else
-		local firstSpline = SplineMetatable.new(
-			firstControlPoint,
-			points[1],
-			points[2],
-			points[3],
-			alpha,
-			tension
-		)
-		local lastSpline = SplineMetatable.new(
-			points[numPoints - 2],
-			points[numPoints - 1],
-			lastPoint,
-			lastControlPoint,
-			alpha,
-			tension
-		)
-		chainLength = firstSpline.Length + lastSpline.Length
-		splines[1] = firstSpline
-		splines[numPoints - 1] = lastSpline
-		for i = 1, numPoints - 3 do
-			local spline = SplineMetatable.new(
-				points[i],
-				points[i + 1],
-				points[i + 2],
-				points[i + 3],
-				alpha,
-				tension
-			)
-			splines[i + 1] = spline
-			chainLength += spline.Length
-		end
+		splines[i] = spline
+		chainLength += spline.Length
 	end
 
 	local splineIntervals = table.create(numPoints - 1)
@@ -456,7 +426,7 @@ function ChainMetatable.new(points: {Knot}, alpha: number?, tension: number?)
 	return setmetatable({
 		ClassName = splines[1].ClassName .. "Chain",
 		Length = chainLength,
-		Points = points,
+		Points = points, -- FIX: Should this still include the first and last control points?
 		Splines = splines,
 		SplineFromAlphaCache = splineFromAlphaCache,
 		SplineIntervals = splineIntervals
@@ -464,7 +434,7 @@ function ChainMetatable.new(points: {Knot}, alpha: number?, tension: number?)
 end
 
 -- internal methods
-function ChainMetatable:_GetSplineFromAlpha(alpha: number)
+function ChainMetatable:_AlphaToSpline(alpha: number)
 	local startInterval = self.SplineFromAlphaCache[string.format("%.2f", alpha)]
 	local splineIntervals = self.SplineIntervals
 
@@ -477,7 +447,7 @@ function ChainMetatable:_GetSplineFromAlpha(alpha: number)
 	end
 end
 
--- methods (Chain wraps every SplineMetatable method)
+-- methods
 function ChainMetatable:SolveLength(a: number?, b: number?)
 	if not a and not b then return self.Length end
 	assert(tOptionalUnitInterval(a))
@@ -496,11 +466,11 @@ function ChainMetatable:SolveArcLength(a: number?, b: number?)
 	local length = 0
 	-- TODO: implement this
 end
-
-for methodName, _ in pairs(SplineMetatable) do
+for methodName, _ in pairs(SplineMetatable) do -- wraps every SplineMetatable method
 	if string.sub(methodName, 1, 5) == "Solve" and not ChainMetatable[methodName] then
 		ChainMetatable[methodName] = function(self, alpha: number)
-			local spline, splineAlpha = self:_GetSplineFromAlpha(alpha)
+			assert(tUnitInterval(alpha))
+			local spline, splineAlpha = self:_AlphaToSpline(alpha)
 			return spline[methodName](spline, splineAlpha)
 		end
 	end
