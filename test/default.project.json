@@ -4,19 +4,18 @@
 		"$className": "DataModel",
 		"ReplicatedStorage": {
 			"$className": "ReplicatedStorage",
-			"$ignoreUnknownInstances": true,
-			"$path": "src",
+			"$path": "../src",
 			"t": {
-				"$path": "modules/t"
+				"$path": "../modules/t"
 			},
 			"TestEZ": {
-				"$path": "modules/TestEZ"
+				"$path": "../modules/TestEZ"
 			}
 		},
 		"ServerScriptService": {
 			"$className": "ServerScriptService",
 			"$ignoreUnknownInstances": true,
-			"$path": "tests"
+			"$path": "server"
 		}
 	}
 }
