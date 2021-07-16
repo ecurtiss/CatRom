@@ -153,35 +153,39 @@ local function CFrameToQuaternion(cframe)
 	end
 end
 
-local function FuzzyEq(a, b)
-	local function fuzzyEqNumber(n1: number, n2: number)
-		return n1 == n2 or math.abs(n1 - n2) <= (math.abs(n1) + 1) * EPSILON
-	end
-	local function fuzzyEqVector(v1: Vector2 | Vector3, v2: Vector2 | Vector3)
-		if not fuzzyEqNumber(v1.X, v2.X) then return false end
-		if not fuzzyEqNumber(v1.Y, v2.Y) then return false end
-		if typeof(v1) == "Vector3" then
-			if not fuzzyEqNumber(v1.Z, v2.Z) then return false end
+local FuzzyEq do
+	local function fuzzyEqVector2(v1: Vector2, v2: Vector2)
+		local v1x, v2x = v1.X, v2.X
+		if v1x == v2x or math.abs(v1x - v2x) <= (math.abs(v1x) + 1) * EPSILON then
+			local v1y, v2y = v1.Y, v2.Y
+			if v1y == v2y or math.abs(v1y - v2y) <= (math.abs(v1y) + 1) * EPSILON then
+				return true
+			end
 		end
-		return true
+		return false
 	end
+
 	local function fuzzyEqCFrame(cf1: CFrame, cf2: CFrame)
-		if fuzzyEqVector(cf1.Position, cf2.Position)
-		and fuzzyEqVector(cf1.RightVector, cf2.RightVector)
-		and fuzzyEqVector(cf1.UpVector, cf2.UpVector)
-		and fuzzyEqVector(cf1.LookVector, cf2.LookVector) then
+		if cf1.Position:FuzzyEq(cf2.Position, EPSILON)
+			and cf1.RightVector:FuzzyEq(cf2.RightVector, EPSILON)
+			and cf1.UpVector:FuzzyEq(cf2.UpVector, EPSILON)
+			and cf1.LookVector:FuzzyEq(cf2.LookVector, EPSILON) then
 			return true
 		end
 		return false
 	end
 
-	assert(a ~= b, "Attempting to compare \"" .. typeof(a) .. "\" with \"" .. typeof(b) .. "\".")
-	if typeof(a) == "number" then
-		return fuzzyEqNumber(a, b)
-	elseif typeof(a) == "Vector2" or typeof(a) == "Vector3" then
-		return fuzzyEqVector(a, b)
-	elseif typeof(a) == "CFrame" then
-		return fuzzyEqCFrame(a, b)
+	function FuzzyEq(a, b)
+		local aType = typeof(a)
+		if aType == "number" then
+			return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
+		elseif aType == "Vector2" then
+			return fuzzyEqVector2(a, b)
+		elseif aType == "Vector3" then
+			return a:FuzzyEq(b, EPSILON)
+		elseif aType == "CFrame" then
+			return fuzzyEqCFrame(a, b)
+		end
 	end
 end
 
