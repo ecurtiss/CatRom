@@ -1,6 +1,3 @@
-[submodule "modules/TestEZ"]
-	path = modules/TestEZ
-	url = https://github.com/roblox/testez
 [submodule "modules/t"]
 	path = modules/t
 	url = https://github.com/osyrisrblx/t
