@@ -52,7 +52,7 @@ function Chain.new(points: {Types.Knot}, alpha: number?, tension: number?)
 		table.insert(points, 1, points[2]:Lerp(firstPoint, 2)) -- first control point
 	end
 
-	local splines = table.create(numPoints + 1)
+	local splines = table.create(numPoints - 1)
 	local chainLength = 0
 	for i = 1, numPoints - 1 do
 		local spline = Spline.new(
@@ -68,18 +68,10 @@ function Chain.new(points: {Types.Knot}, alpha: number?, tension: number?)
 	end
 
 	local splineIntervals = table.create(numPoints - 1)
-	local splineFromAlphaCache = table.create(100)
 	local runningChainLength = 0
 	for i, spline in ipairs(splines) do
-		local intervalStart = runningChainLength / chainLength
+		splineIntervals[i] = runningChainLength / chainLength
 		runningChainLength += spline.Length
-		local intervalEnd = runningChainLength / chainLength
-		splineIntervals[i] = {Start = intervalStart, End = intervalEnd}
-		local endAlpha = math.floor(intervalEnd * 100) - math.ceil(intervalStart * 100)
-		for alpha = 0, endAlpha do
-			local newAlpha = math.ceil(intervalStart * 100) / 100 + alpha / 100
-			splineFromAlphaCache[string.format("%.2f", newAlpha)] = i
-		end
 	end
 
 	return setmetatable({
@@ -87,23 +79,60 @@ function Chain.new(points: {Types.Knot}, alpha: number?, tension: number?)
 		Length = chainLength,
 		Points = points, -- FIX: Should this still include the first and last control points?
 		Splines = splines,
-		SplineFromAlphaCache = splineFromAlphaCache,
 		SplineIntervals = splineIntervals
 	}, Chain)
 end
 
 -- Internal methods
-local function AlphaToSpline(self, alpha: number)
-	local startInterval = self.SplineFromAlphaCache[string.format("%.2f", alpha)]
-	local splineIntervals = self.SplineIntervals
 
-	for i = startInterval, #splineIntervals do
-		local splineInterval = splineIntervals[i]
-		if alpha >= splineInterval.Start and alpha <= splineInterval.End then
-			local splineAlpha = (alpha - splineInterval.Start) / (splineInterval.End - splineInterval.Start)
-			return self.Splines[i], splineAlpha, splineInterval
+-- Binary search for the spline in the chain where the alpha corresponds to.
+-- Ex. For an alpha of 50%, we must find the spline in the chain that contains
+-- the 50% mark.
+local function AlphaToSpline(self, alpha: number)
+	local splines = self.Splines
+	local intervals = self.SplineIntervals
+	local numSplines = #splines
+
+	-- There is only one option if there is one spline.
+	if numSplines == 1 then
+		return splines[1], alpha
+	end
+
+	-- Special cases for when alpha is outside of the unti interval.
+	if alpha <= 0 then
+		-- (alpha - 0) / (intervals[2] - 0)
+		return splines[1], alpha / intervals[2]
+	elseif alpha >= 1 then
+		local n = #splines
+		return splines[n], (alpha - intervals[n]) / (1 - intervals[n][1])
+	end
+
+	-- Binary search for the spline containing the particular alpha along the chain.
+	local left = 1
+	local right = #splines
+
+	while left <= right do
+		local mid = math.floor((left + right) / 2)
+		local intervalStart = intervals[mid]
+
+		if alpha >= intervalStart then
+			local intervalEnd = mid == numSplines and 1 or intervals[mid + 1]
+
+			if alpha <= intervalEnd then
+				local spline = splines[mid]
+				local splineAlpha = (alpha - intervalStart) / (intervalEnd - intervalStart)
+				return spline, splineAlpha
+			else
+				left = mid + 1
+			end
+		else
+			right = mid - 1
 		end
 	end
+
+	-- This should theoretically never be possible, but if it occurs, then we
+	-- should not fail silently.
+	error("Failed to get spline from alpha")
 end
 
 -- Methods
