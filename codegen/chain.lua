@@ -35,7 +35,7 @@ for line in io.lines(SPLINE_FILE) do
 			local method = {
 				"function Chain:Solve" .. methodName .. string.sub(line, stop),
 				"\tassert(tUnitInterval(alpha))",
-				"\tlocal spline, splineAlpha = self:_AlphaToSpline(alpha)",
+				"\tlocal spline, splineAlpha = AlphaToSpline(self, alpha)",
 				"\treturn spline:Solve" .. methodName .. "(splineAlpha)"
 			}
 
