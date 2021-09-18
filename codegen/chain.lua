@@ -1,5 +1,5 @@
 --[[
-	Copies the Spline modules into Chain. If the following two lines are not
+	Copies the Spline methods into Chain. If the following two lines are not
 	present in the script,
 
 	---- START GENERATED METHODS
