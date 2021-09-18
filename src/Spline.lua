@@ -69,22 +69,23 @@ end
 function Spline:_Reparameterize(alpha: number)
 	if alpha == 0 or alpha == 1 then return alpha end
 
-	local length = self.Length
-	local goalLength = length * alpha
-	local runningLength = 0
-	local lastPosition = self:SolvePosition(0)
+	local goal = self.Length * alpha
+	local length = 0
+	local lastPos = self:SolvePosition(0)
 
 	for i = 1, RIEMANN_STEPS do
 		i /= RIEMANN_STEPS
-		local thisPosition = self:SolvePosition(i)
-		runningLength += (thisPosition - lastPosition).Magnitude
-		--runningLength += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
-		--runningLength += (dp / DT).Magnitude * RIEMANN_STEP
-		lastPosition = thisPosition
-		if runningLength >= goalLength then
-			return i -- FIX: Snaps every 1/RIEMANN_STEP
+
+		local pos = self:SolvePosition(i)
+		length += (pos - lastPos).Magnitude
+		lastPos = pos
+
+		if length > goal then
+			return i
 		end
 	end
+
+	error("Failed to reparameterize")
 end
 
 -- Methods
@@ -142,6 +143,7 @@ function Spline:SolveLength(a: number?, b: number?)
 	assert(tOptionalUnitInterval(b))
 	a = a or 0
 	b = b or 1
+
 	local length = 0
 	local lastPosition = self:SolvePosition(a)
 	local steps = (b - a) * RIEMANN_STEPS
