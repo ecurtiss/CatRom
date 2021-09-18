@@ -93,7 +93,7 @@ function Chain.new(points: {Types.Knot}, alpha: number?, tension: number?)
 end
 
 -- Internal methods
-function Chain:_AlphaToSpline(alpha: number)
+local function AlphaToSpline(self, alpha: number)
 	local startInterval = self.SplineFromAlphaCache[string.format("%.2f", alpha)]
 	local splineIntervals = self.SplineIntervals
 
@@ -130,92 +130,92 @@ end
 ---- START GENERATED METHODS
 function Chain:SolvePosition(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolvePosition(splineAlpha)
 end
 function Chain:SolveVelocity(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveVelocity(splineAlpha)
 end
 function Chain:SolveAcceleration(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveAcceleration(splineAlpha)
 end
 function Chain:SolveTangent(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveTangent(splineAlpha)
 end
 function Chain:SolveNormal(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveNormal(splineAlpha)
 end
 function Chain:SolveBinormal(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveBinormal(splineAlpha)
 end
 function Chain:SolveCurvature(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveCurvature(splineAlpha)
 end
 function Chain:SolveCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveCFrame(splineAlpha)
 end
 function Chain:SolveRotCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveRotCFrame(splineAlpha)
 end
 function Chain:SolveUniformPosition(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformPosition(splineAlpha)
 end
 function Chain:SolveUniformVelocity(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformVelocity(splineAlpha)
 end
 function Chain:SolveUniformAcceleration(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformAcceleration(splineAlpha)
 end
 function Chain:SolveUniformTangent(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformTangent(splineAlpha)
 end
 function Chain:SolveUniformNormal(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformNormal(splineAlpha)
 end
 function Chain:SolveUniformBinormal(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformBinormal(splineAlpha)
 end
 function Chain:SolveUniformCurvature(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformCurvature(splineAlpha)
 end
 function Chain:SolveUniformCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformCFrame(splineAlpha)
 end
 function Chain:SolveUniformRotCFrame(alpha: number)
 	assert(tUnitInterval(alpha))
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
+	local spline, splineAlpha = AlphaToSpline(self, alpha)
 	return spline:SolveUniformRotCFrame(splineAlpha)
 end
 ---- END GENERATED METHODS
