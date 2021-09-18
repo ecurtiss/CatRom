@@ -104,7 +104,7 @@ local function AlphaToSpline(self, alpha: number)
 		return splines[1], alpha / intervals[2]
 	elseif alpha >= 1 then
 		local n = #splines
-		return splines[n], (alpha - intervals[n]) / (1 - intervals[n][1])
+		return splines[n], (alpha - intervals[n]) / (1 - intervals[n])
 	end
 
 	-- Binary search for the spline containing the particular alpha along the chain.
