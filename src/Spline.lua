@@ -6,7 +6,7 @@ Spline.__index = Spline
 
 local DEFAULT_TENSION = 0
 local DEFAULT_KNOT_PARAMETERIZATION = 0.5
-local RIEMANN_STEP = 1e-3
+local RIEMANN_STEPS = 1000 -- Number of samples for calculating arc length
 
 -- Type checking
 local tUnitInterval = Types.tUnitInterval
@@ -39,13 +39,14 @@ function Spline.new(k0: Types.Knot, k1: Types.Knot, k2: Types.Knot, k3: Types.Kn
 	local m1 = (1 - tension) * (t2 - t1) * ((p1 - p0)/(t1 - t0) - (p2 - p0)/(t2 - t0) + (p2 - p1)/(t2 - t1))
 	local m2 = (1 - tension) * (t2 - t1) * ((p2 - p1)/(t2 - t1) - (p3 - p1)/(t3 - t1) + (p3 - p2)/(t3 - t2))
 	local a: Vector3 = 2 * (p1 - p2) + m1 + m2
-	local b: Vector3 = 3 * (p2 - p1) - 2*m1 - m2
+	local b: Vector3 = 3 * (p2 - p1) - 2 * m1 - m2
 	local c: Vector3 = m1
 	local d: Vector3 = p1
 
 	local self = setmetatable({
 		ClassName = className,
 		Length = nil,
+		RiemannSteps = RIEMANN_STEPS,
 
 		-- knots
 		k0 = k0,
@@ -65,7 +66,7 @@ function Spline.new(k0: Types.Knot, k1: Types.Knot, k2: Types.Knot, k3: Types.Kn
 end
 
 -- Internal methods
-function Spline:_ToArcLengthAlpha(alpha: number)
+function Spline:_Reparameterize(alpha: number)
 	if alpha == 0 or alpha == 1 then return alpha end
 
 	local length = self.Length
@@ -73,8 +74,8 @@ function Spline:_ToArcLengthAlpha(alpha: number)
 	local runningLength = 0
 	local lastPosition = self:SolvePosition(0)
 
-	for i = 1, 1 / RIEMANN_STEP do
-		i *= RIEMANN_STEP
+	for i = 1, RIEMANN_STEPS do
+		i /= RIEMANN_STEPS
 		local thisPosition = self:SolvePosition(i)
 		runningLength += (thisPosition - lastPosition).Magnitude
 		--runningLength += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
@@ -92,18 +93,18 @@ function Spline:SolvePosition(alpha: number)
 end
 
 function Spline:SolveVelocity(alpha: number)
-	return 3*self.a*alpha^2 + 2*self.b*alpha + self.c
+	return 3*self.a*alpha^2 + 2*self.b*alpha + self.c -- dr / dt
 end
 
 function Spline:SolveAcceleration(alpha: number)
-	return 6*self.a*alpha + 2*self.b
+	return 6*self.a*alpha + 2*self.b -- d^2r / dt^2
 end
 
-function Spline:SolveUnitTangent(alpha: number)
+function Spline:SolveTangent(alpha: number)
 	return self:SolveVelocity(alpha).Unit -- T(t) = r'(t) / |r'(t)|
 end
 
-function Spline:SolveUnitNormal(alpha: number)
+function Spline:SolveNormal(alpha: number)
 	-- r is conventionally position
 	-- p means prime (as in derivative)
 	-- pp means prime prime (as in second derivative)
@@ -114,13 +115,14 @@ function Spline:SolveUnitNormal(alpha: number)
 	return (rpp / rp.Magnitude - rp * rp:Dot(rpp) / rp.Magnitude^3).Unit
 end
 
-function Spline:SolveUnitBinormal(alpha: number)
-	return self:SolveUnitTangent(alpha):Cross(self:SolveUnitTangent(alpha))
+function Spline:SolveBinormal(alpha: number)
+	return self:SolveTangent(alpha):Cross(self:SolveNormal(alpha))
 end
 
 function Spline:SolveCurvature(alpha: number)
 	local rp = self:SolveVelocity(alpha)
 	local rpp = self:SolveAcceleration(alpha)
+	-- non-unitized normal
 	local tangentp = rpp / rp.Magnitude - rp * rp:Dot(rpp) / rp.Magnitude^3
 
 	local curvature = tangentp.Magnitude / rp.Magnitude
@@ -142,8 +144,9 @@ function Spline:SolveLength(a: number?, b: number?)
 	b = b or 1
 	local length = 0
 	local lastPosition = self:SolvePosition(a)
-	for i = 1, (b - a) / RIEMANN_STEP do
-		i /= (b - a) / RIEMANN_STEP
+	local steps = (b - a) * RIEMANN_STEPS
+	for i = 1, steps do
+		i /= steps
 		local thisPosition = self:SolvePosition(a + (b - a) * i)
 		length += (thisPosition - lastPosition).Magnitude
 		--length += ((thisPosition - lastPosition) / (Vector3.new(1, 1, 1) * RIEMANN_STEP)).Magnitude * RIEMANN_STEP
@@ -171,25 +174,48 @@ function Spline:SolveRotCFrame(alpha: number)
 	return CFrame.lookAt(position, position + tangent, quaternionToCFrame.UpVector)
 end
 
--- Generate arc methods on runtime
-do
-	local arcMethods = {}
-
-	for methodName, method in pairs(Spline) do
-		if string.sub(methodName, 1, 5) == "Solve" then
-			arcMethods["SolveArc" .. string.sub(methodName, 6)] = function(self, ...)
-				local inputs = table.pack(...)
-				for i, alpha in ipairs(inputs) do
-					inputs[i] = self:_ToArcLengthAlpha(alpha)
-				end
-				return method(self, table.unpack(inputs))
-			end
-		end
-	end
-
-	for methodName, method in pairs(arcMethods) do
-		Spline[methodName] = method
-	end
+---- START GENERATED METHODS
+function Spline:SolveUniformPosition(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolvePosition(alpha)
 end
+function Spline:SolveUniformVelocity(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveVelocity(alpha)
+end
+function Spline:SolveUniformAcceleration(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveAcceleration(alpha)
+end
+function Spline:SolveUniformTangent(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveTangent(alpha)
+end
+function Spline:SolveUniformNormal(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveNormal(alpha)
+end
+function Spline:SolveUniformBinormal(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveBinormal(alpha)
+end
+function Spline:SolveUniformCurvature(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveCurvature(alpha)
+end
+function Spline:SolveUniformCFrame(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveCFrame(alpha)
+end
+function Spline:SolveUniformLength(a: number?, b: number?)
+	a = self:_Reparameterize(a)
+	b = self:_Reparameterize(b)
+	return self:SolveLength(a, b)
+end
+function Spline:SolveUniformRotCFrame(alpha: number)
+	alpha = self:_Reparameterize(alpha)
+	return self:SolveRotCFrame(alpha)
+end
+---- END GENERATED METHODS
 
 return Spline
