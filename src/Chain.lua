@@ -1,41 +1,13 @@
+local FuzzyEq = require(script.Parent.FuzzyEq)
 local Spline = require(script.Parent.Spline)
 local Types = require(script.Parent.Types)
 
 local Chain = {}
 Chain.__index = Chain
 
-local EPSILON = 1e-4
-
 -- Type checking
 local tUnitInterval = Types.tUnitInterval
 local tOptionalUnitInterval = Types.tOptionalUnitInterval
-
-local function FuzzyEq(a, b)
-	local aType = typeof(a)
-
-	if aType == "number" then
-		return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
-	elseif aType == "Vector3" then
-		return a:FuzzyEq(b, EPSILON)
-	elseif aType == "Vector2" then
-		local aX, bX = a.X, b.X
-		if aX == bX or math.abs(aX - bX) <= (math.abs(aX) + 1) * EPSILON then
-			local aY, bY = a.Y, b.Y
-			if aY == bY or math.abs(aY - bY) <= (math.abs(aY) + 1) * EPSILON then
-				return true
-			end
-		end
-	elseif aType == "CFrame" then
-		if a.Position:FuzzyEq(b.Position, EPSILON)
-			and a.RightVector:FuzzyEq(b.RightVector, EPSILON)
-			and a.UpVector:FuzzyEq(b.UpVector, EPSILON)
-			and a.LookVector:FuzzyEq(b.LookVector, EPSILON) then
-			return true
-		end
-	end
-
-	return false
-end
 
 -- Constructor
 function Chain.new(points: {Types.Knot}, alpha: number?, tension: number?)
@@ -99,10 +71,14 @@ local function AlphaToSpline(self, alpha: number)
 	end
 
 	-- Special cases for when alpha is outside of the unti interval.
-	if alpha <= 0 then
+	if alpha < 0 then
 		-- (alpha - 0) / (intervals[2] - 0)
 		return splines[1], alpha / intervals[2]
-	elseif alpha >= 1 then
+	elseif alpha == 0 then
+		return splines[1], 0
+	elseif alpha == 1 then
+		return splines[#splines], 1
+	elseif alpha > 1 then
 		local n = #splines
 		return splines[n], (alpha - intervals[n]) / (1 - intervals[n])
 	end

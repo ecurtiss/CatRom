@@ -1,3 +1,4 @@
+local FuzzyEq = require(script.Parent.FuzzyEq)
 local Squad = require(script.Parent.Squad)
 local Types = require(script.Parent.Types)
 
@@ -31,17 +32,28 @@ function Spline.new(k0: Types.Knot, k1: Types.Knot, k2: Types.Knot, k3: Types.Kn
 		className = "CFrameSpline"
 	end
 
-	-- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
-	local t0 = 0
-	local t1 = (p1 - p0).Magnitude ^ alpha + t0
-	local t2 = (p2 - p1).Magnitude ^ alpha + t1
-	local t3 = (p3 - p2).Magnitude ^ alpha + t2
-	local m1 = (1 - tension) * (t2 - t1) * ((p1 - p0)/(t1 - t0) - (p2 - p0)/(t2 - t0) + (p2 - p1)/(t2 - t1))
-	local m2 = (1 - tension) * (t2 - t1) * ((p2 - p1)/(t2 - t1) - (p3 - p1)/(t3 - t1) + (p3 - p2)/(t3 - t2))
-	local a: Vector3 = 2 * (p1 - p2) + m1 + m2
-	local b: Vector3 = 3 * (p2 - p1) - 2 * m1 - m2
-	local c: Vector3 = m1
-	local d: Vector3 = p1
+	local a, b, c
+	if FuzzyEq(p1, p2) then
+		a = p1 * 0
+		b = a
+		c = a
+	elseif FuzzyEq(p0, p1) or FuzzyEq(p2, p3) then
+		a = p1 * 0
+		b = a
+		c = p2 - p1
+	else
+		-- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
+		local t0 = 0
+		local t1 = (p1 - p0).Magnitude ^ alpha + t0
+		local t2 = (p2 - p1).Magnitude ^ alpha + t1
+		local t3 = (p3 - p2).Magnitude ^ alpha + t2
+		local m1 = (1 - tension) * (t2 - t1) * ((p1 - p0)/(t1 - t0) - (p2 - p0)/(t2 - t0) + (p2 - p1)/(t2 - t1))
+		local m2 = (1 - tension) * (t2 - t1) * ((p2 - p1)/(t2 - t1) - (p3 - p1)/(t3 - t1) + (p3 - p2)/(t3 - t2))
+		a = 2 * (p1 - p2) + m1 + m2
+		b = 3 * (p2 - p1) - 2 * m1 - m2
+		c = m1
+	end
+
 
 	local self = setmetatable({
 		ClassName = className,
@@ -58,7 +70,7 @@ function Spline.new(k0: Types.Knot, k1: Types.Knot, k2: Types.Knot, k3: Types.Kn
 		a = a,
 		b = b,
 		c = c,
-		d = d
+		d = p1
 	}, Spline)
 	self.Length = self:SolveLength()
 
