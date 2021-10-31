@@ -5,7 +5,7 @@
 		"ReplicatedStorage": {
 			"$className": "ReplicatedStorage",
 			"CatRom": {
-				"$path": "../src"
+				"$path": "src"
 			}
 		}
 	}
