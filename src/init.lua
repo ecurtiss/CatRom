@@ -8,28 +8,20 @@ local DEFAULT_TENSION = 0
 local CatRom = {}
 CatRom.__index = CatRom
 
-function CatRom.new(options)
-	local points = options.Points -- Control points
-	local alpha = options.Alpha or DEFAULT_ALPHA -- Parameterization exponent
-	local tension = options.Tension or DEFAULT_TENSION
+function CatRom.new(points, alpha, tension)
+	alpha = alpha or DEFAULT_ALPHA -- Parameterization exponent
+	tension = tension or DEFAULT_TENSION
 
 	-- Typecheck
-	if options.Typecheck ~= false then
-		assert(type(points) == "table", "Points must be a table.")
-		assert(type(alpha) == "number", "Alpha must be a number.")
-		assert(type(tension) == "number", "Tension must be a number.")
-	end
-
+	assert(type(points) == "table", "Points must be a table.")
+	assert(type(alpha) == "number", "Alpha must be a number.")
+	assert(type(tension) == "number", "Tension must be a number.")
 	local pointType = typeof(points[1])
-	if options.Typecheck ~= false then
-		assert(#points >= 2, "2 or more points are required.")
-		assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
-			"Points must be a table of Vector2s, Vector3s, or CFrames.")
-		for _, point in ipairs(points) do
-			if typeof(point) ~= pointType then
-				error("All points must be of the same type.")
-			end
-		end
+	assert(#points >= 2, "Two or more points are required.")
+	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
+		"Points must be a table of Vector2s, Vector3s, or CFrames.")
+	for _, point in ipairs(points) do
+		assert(typeof(point) == pointType, "All points must be of the same type.")
 	end
 
 	-- Extrapolate to get 0th and n+1th points
