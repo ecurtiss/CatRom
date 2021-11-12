@@ -71,20 +71,21 @@ end
 
 -- Methods
 function Spline:SolvePosition(alpha: number)
-	-- Horner's method applied to
+	-- r(t)
+	-- In particular, it is Horner's method applied to
 	-- self.a * alpha ^ 3 + self.b * alpha ^ 2 + self.c * alpha + self.d
 	return self.d + alpha * (self.c + alpha * (self.b + alpha * self.a))
 end
 
 function Spline:SolveVelocity(alpha: number)
-	-- dr / dt
-	-- Horner's method applied to
+	-- r'(t)
+	-- In particular, it is Horner's method applied to
 	-- 3 * self.a * alpha ^ 2 + 2 * self.b * alpha + self.c
 	return self.c + alpha * (2 * self.b + alpha * 3 * self.a)
 end
 
 function Spline:SolveAcceleration(alpha: number)
-	-- d^2r / dt^2
+	-- r''(t)
 	return 6 * self.a * alpha + 2 * self.b
 end
 
@@ -94,28 +95,31 @@ function Spline:SolveTangent(alpha: number)
 end
 
 function Spline:SolveNormal(alpha: number)
-	-- N(t) = T'(t) / |T'(t)|
-	-- The return statement is equivalent to T'(t) / |T'(t)| when the
-	-- derivatives are carried out.
-	local tan = self:SolveTangent(alpha)
-	local acc = self:SolveAcceleration(alpha)
-	-- return (rp * (rpp:Dot(rp)) - rpp * rp.Magnitude ^ 2).Unit
-	return (tan * acc:Dot(tan) - acc).Unit
+	-- N(t) = T'(t) / ||T'(t)||
+	-- The return is equivalent to N(t) when the derivatives are carried out.
+	-- In particular, the vector being unitized is T'(t) * ||r'(t)|| ^ 3, but
+	-- the ||r'(t)|| ^ 3 doesn't affect the result because we unitize it anyway.
+	-- This scaled version is simply faster to compute.
+	local rp = self:SolveVelocity(alpha) -- p for prime (1st deriv.)
+	local rpp = self:SolveAcceleration(alpha) -- pp for prime prime (2nd deriv.)
+	return (rpp * rp.Magnitude ^ 2 - rp * rpp:Dot(rp)).Unit
 end
 
 function Spline:SolveBinormal(alpha: number)
+	-- T(t) x N(t)
 	return self:SolveTangent(alpha):Cross(self:SolveNormal(alpha))
 end
 
 function Spline:SolveCurvature(alpha: number)
 	local rp = self:SolveVelocity(alpha)
 	local rpp = self:SolveAcceleration(alpha)
-	-- non-unitized normal
-	local tangentp = rpp / rp.Magnitude - rp * rp:Dot(rpp) / rp.Magnitude ^ 3
+	local rpMag = rp.Magnitude
+	local tangentp = rpp / rpMag - rp * rp:Dot(rpp) / rpMag ^ 3
 
-	local curvature = tangentp.Magnitude / rp.Magnitude
+	-- Curvature = ||T'(t)|| / ||r'(t)||
+	-- N(t) is the direction of curvature
+	local curvature = tangentp.Magnitude / rpMag
 	local unitNormal = tangentp.Unit
-
 	return curvature, unitNormal
 end
 
