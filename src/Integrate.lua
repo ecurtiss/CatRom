@@ -34,7 +34,7 @@ end
 function Integrate.Simp13Comp(f, a, b, steps)
 	steps = steps or 10
 	local stepsInv = 1 / steps
-	local sum = 0
+	local sum = f(a) * 0
 	for t = 1, steps do
 		t = t / steps
 		sum = sum + Integrate.Simp13(f, lerp(a, b, t - stepsInv), lerp(a, b, t))
@@ -46,7 +46,7 @@ end
 function Integrate.Simp38Comp(f, a, b, steps)
 	steps = steps or 10
 	local stepsInv = 1 / steps
-	local sum = 0
+	local sum = f(a) * 0
 	for t = 1, steps do
 		t = t / steps
 		sum = sum + Integrate.Simp38(f, lerp(a, b, t - stepsInv), lerp(a, b, t))
@@ -58,7 +58,7 @@ end
 function Integrate.RiemannSumLeft(f, a, b, steps)
 	steps = steps or 10
 	local dx = (b - a) / steps
-	local sum = 0
+	local sum = f(a) * 0
 	for t = 0, steps - 1 do
 		sum = sum + f(lerp(a, b, t / steps)) * dx
 	end
@@ -69,7 +69,7 @@ end
 function Integrate.RiemannSumRight(f, a, b, steps)
 	steps = steps or 10
 	local dx = (b - a) / steps
-	local sum = 0
+	local sum = f(a) * 0
 	for t = 1, steps do
 		sum = sum + f(lerp(a, b, t / steps)) * dx
 	end
@@ -81,7 +81,7 @@ function Integrate.RiemannSumMid(f, a, b, steps)
 	steps = steps or 10
 	local dx = (b - a) / steps
 	local halfStep = 1 / 2 / steps
-	local sum = 0
+	local sum = f(a) * 0
 	for t = 1, steps do
 		sum = sum + f(lerp(a, b, t / steps - halfStep)) * dx
 	end
@@ -97,7 +97,7 @@ end
 function Integrate.TrapezoidComp(f, a, b, steps)
 	steps = steps or 10
 	local stepsInv = 1/ steps
-	local sum = 0
+	local sum = f(a) * 0
 	for t = 0, steps - 1 do
 		t = t / steps
 		sum = sum + Integrate.Trapezoid(f, lerp(a, b, t), lerp(a, b, t + stepsInv))
