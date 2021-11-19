@@ -72,14 +72,14 @@ end
 -- Methods
 function Spline:SolvePosition(alpha: number)
 	-- r(t)
-	-- In particular, it is Horner's method applied to
+	-- This is Horner's method applied to
 	-- self.a * alpha ^ 3 + self.b * alpha ^ 2 + self.c * alpha + self.d
 	return self.d + alpha * (self.c + alpha * (self.b + alpha * self.a))
 end
 
 function Spline:SolveVelocity(alpha: number)
 	-- r'(t)
-	-- In particular, it is Horner's method applied to
+	-- This is Horner's method applied to
 	-- 3 * self.a * alpha ^ 2 + 2 * self.b * alpha + self.c
 	return self.c + alpha * (2 * self.b + alpha * 3 * self.a)
 end
@@ -98,8 +98,8 @@ function Spline:SolveNormal(alpha: number)
 	-- N(t) = T'(t) / ||T'(t)||
 	-- The return is equivalent to N(t) when the derivatives are carried out.
 	-- In particular, the vector being unitized is T'(t) * ||r'(t)|| ^ 3, but
-	-- the ||r'(t)|| ^ 3 doesn't affect the result because we unitize it anyway.
-	-- This scaled version is simply faster to compute.
+	-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we unitize it
+	-- anyway. This scaled version is simply faster to compute.
 	local rp = self:SolveVelocity(alpha) -- p for prime (1st deriv.)
 	local rpp = self:SolveAcceleration(alpha) -- pp for prime prime (2nd deriv.)
 	return (rpp * rp.Magnitude ^ 2 - rp * rpp:Dot(rp)).Unit
@@ -134,10 +134,18 @@ function Spline:SolveRotCFrame(alpha: number)
 	if rot0 then -- CFrameCatRom
 		local position = self:SolvePosition(alpha)
 		local tangent = self:SolveVelocity(alpha)
+		
 		local qw, qx, qy, qz = Squad(rot0, self.rot1, self.rot2, self.rot3, alpha)
-		-- FIX: Hand compute the up vector?
-		local cf = CFrame.new(0, 0, 0, qx, qy, qz, qw)
-		return CFrame.lookAt(position, position + tangent, cf.UpVector)
+		local qxqx = qx ^ 2
+		local qzqz = qz ^ 2
+		local s = 1 / (qw ^ 2 + qxqx + qy ^ 2 + qzqz)
+		local upVector = Vector3.new(
+			2 * s * (qx * qy - qz * qw),
+			1 - 2 * s * (qxqx + qzqz),
+			2 * s * (qy * qz + qx * qw)
+		)
+
+		return CFrame.lookAt(position, position + tangent, upVector)
 	else -- VectorCatRom
 		return self:SolveCFrame(alpha)
 	end
