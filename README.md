@@ -3,6 +3,7 @@
 	<img src="https://github.com/EthanCurtiss/CatRom/blob/rewrite/docs/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
 	<hr/>
 </div>
+
 Creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
 
 The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve, with the key difference that CatRoms are guaranteed to pass through their control points. This allows them to chain together predictably and intuitively.
