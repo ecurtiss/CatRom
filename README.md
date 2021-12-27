@@ -1,12 +1,13 @@
-<p align="center">
-	<img src="https://github.com/EthanCurtiss/CatRom/blob/master/docs/logo-light.png#gh-light-mode-only" height="120" alt="CatRom logo"/>
-	<img src="https://github.com/EthanCurtiss/CatRom/blob/master/docs/logo-dark.png#gh-dark-mode-only" height="120" alt="CatRom logo"/>
-</p>
-CaRom creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
+<div align="center">
+	<img src="https://github.com/EthanCurtiss/CatRom/blob/rewrite/docs/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
+	<img src="https://github.com/EthanCurtiss/CatRom/blob/rewrite/docs/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
+	<hr/>
+</div>
+Creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
 
-The Catmull-Rom spline is a cousin of the popular Bézier curve, with the key difference that CatRoms are guaranteed to pass through their control points. This allows them to chain together predictably and intuitively.
+The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve, with the key difference that CatRoms are guaranteed to pass through their control points. This allows them to chain together predictably and intuitively.
 
-![Tube](docs/tube.png)
+<img src="docs/tube.png" height="300"/>
 
 ## How to use
 The CatRom constructor takes in 3 arguments:
