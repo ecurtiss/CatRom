@@ -1,15 +1,18 @@
-# CatRom
-Creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
+<p align="center">
+	<img src="https://github.com/EthanCurtiss/CatRom/blob/master/docs/logo-light.png#gh-light-mode-only" height="120" alt="CatRom logo"/>
+	<img src="https://github.com/EthanCurtiss/CatRom/blob/master/docs/logo-dark.png#gh-dark-mode-only" height="120" alt="CatRom logo"/>
+</p>
+CaRom creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
 
-The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve, with the key difference that CatRoms are guaranteed to pass through their control points. This allows them to chain together predictably and intuitively.
+The Catmull-Rom spline is a cousin of the popular Bézier curve, with the key difference that CatRoms are guaranteed to pass through their control points. This allows them to chain together predictably and intuitively.
 
 ![Tube](docs/tube.png)
 
 ## How to use
 The CatRom constructor takes in 3 arguments:
 1. `points`: An array of all Vector2s, Vector3s, or CFrames.
-2. `alpha` [optional]: A number -- usually in [0, 1] -- that determines the "parameterization" of the spline
-3. `tension` [optional]: A number -- usually in [0, 1] -- that determines how loose the spline is
+2. `alpha` [optional]: A number -- usually in [0, 1] -- that determines the "parameterization" of the spline; defaults to 0.5.
+3. `tension` [optional]: A number -- usually in [0, 1] -- that determines how loose the spline is; defaults to 0.
 
 ## API
 ```lua
