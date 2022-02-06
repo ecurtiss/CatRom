@@ -1,7 +1,5 @@
---[[
-	Inputs a Vector2, Vector3, or CFrame and returns the position of the input
-	and the quaternion of the input's rotation (only applies to CFrame).
-]]
+-- Returns a tuple {input.Position, input.Rotation?} where input is a Vector2,
+-- Vector3, or CFrame.
 
 local function CFrameToQuaternion(cframe)
 	local axis, angle = cframe:ToAxisAngle()

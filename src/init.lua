@@ -154,8 +154,7 @@ local function AlphaToSpline(self, alpha)
 		return splines[1], alpha
 	end
 
-	-- Special cases for when alpha is on the border or outside of the unit
-	-- interval
+	-- Special cases for when alpha is on the border or outside of [0, 1]
 	if alpha < 0 then
 		return splines[1], alpha / domains[1]
 	elseif alpha == 0 then
@@ -166,8 +165,7 @@ local function AlphaToSpline(self, alpha)
 		return splines[numSplines], (alpha - domains[numSplines]) / (1 - domains[numSplines])
 	end
 
-	-- Binary search for the spline containing the particular alpha along the
-	-- chain
+	-- Binary search for the spline containing alpha
 	local left = 1
 	local right = numSplines + 1
 
@@ -206,8 +204,8 @@ function CatRom:SolveLength(a, b)
 	a = a or 0
 	b = b or 1
 
-	-- splineAAlpha and splineBAlpha are estimates. This should be made
-	-- more accurate in the future
+	-- splineAAlpha and splineBAlpha are estimates.
+	-- FIX: Improve the accuracy of splineAAlpha and splineBAlpha
 	local splineA, splineAAlpha, splineAIndex = AlphaToSpline(a)
 	local splineB, splineBAlpha, splineBIndex = AlphaToSpline(b)
 
