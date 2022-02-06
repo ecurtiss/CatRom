@@ -2,7 +2,7 @@ local FuzzyEq = require(script.FuzzyEq)
 local Spline = require(script.Spline)
 local ToTransform = require(script.ToTransform)
 
-local DEFAULT_ALPHA = 0.5
+local DEFAULT_ALPHA = 0
 local DEFAULT_TENSION = 0
 
 local CatRom = {}
@@ -12,20 +12,49 @@ function CatRom.new(points, alpha, tension)
 	alpha = alpha or DEFAULT_ALPHA -- Parameterization exponent
 	tension = tension or DEFAULT_TENSION
 
-	-- Typecheck
+	-- Type check
 	assert(type(points) == "table", "Points must be a table.")
 	assert(type(alpha) == "number", "Alpha must be a number.")
 	assert(type(tension) == "number", "Tension must be a number.")
+	assert(#points > 0, "Points table cannot be empty.")
 	local pointType = typeof(points[1])
-	assert(#points >= 2, "Two or more points are required.")
 	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
 		"Points must be a table of Vector2s, Vector3s, or CFrames.")
 	for _, point in ipairs(points) do
 		assert(typeof(point) == pointType, "All points must be of the same type.")
 	end
 
-	-- Extrapolate to get 0th and n+1th points
+	-- Remove equal adjacent points
+	local uniquePoints = {} do
+		local prevPoint = points[1]
+		uniquePoints[1] = prevPoint
+		local i = 2
+		for j = 2, #points do
+			local point = points[j]
+			if not FuzzyEq(point, prevPoint) then
+				uniquePoints[i] = point
+				i += 1
+				prevPoint = point
+			end
+		end
+	end
+	points = uniquePoints
 	local numPoints = #points
+
+	-- Early exit: 1 point
+	if numPoints == 1 then
+		return setmetatable({
+			alpha = alpha,
+			tension = tension,
+
+			splines = {Spline.fromPoint(ToTransform(points[1], pointType))},
+			domains = {0},
+
+			length = 0
+		}, CatRom)
+	end
+
+	-- Extrapolate to get 0th and n+1th points
 	local firstPoint = points[1]
 	local lastPoint = points[numPoints]
 	local zerothPoint, veryLastPoint do
@@ -40,37 +69,56 @@ function CatRom.new(points, alpha, tension)
 		end
 	end
 
-	-- Stream of control points to quicken instantiating splines. I benchmarked
-	-- this to be about 4x faster than copying all of the points into a table
-	-- and doing 4 table lookups per instantiation.
-	local stream1 = ToTransform(zerothPoint, pointType) -- FIX: Don't pack them in tables instead?
-	local stream2 = ToTransform(firstPoint, pointType)
-	local stream3 = ToTransform(points[2], pointType)
-	local stream4 = ToTransform(points[3], pointType)
+	-- Early exit: 2 points
+	if numPoints == 2 then
+		local spline = Spline.fromLine(
+			ToTransform(zerothPoint, pointType),
+			ToTransform(firstPoint, pointType),
+			ToTransform(lastPoint, pointType),
+			ToTransform(veryLastPoint, pointType)
+		)
 
+		return setmetatable({
+			alpha = alpha,
+			tension = tension,
+
+			splines = {spline},
+			domains = {0},
+
+			length = spline.length
+		}, CatRom)
+	end
+
+	-- Create splines
 	local numSplines = numPoints - 1
 	local splines = table.create(numSplines)
 	local totalLength = 0
 
-	-- Add the first spline, whose first point is not in the points table
-	splines[1] = Spline.new(stream1, stream2, stream3, stream4, alpha, tension)
+	-- Sliding window of control points to quicken instantiating splines
+	local window1 = ToTransform(zerothPoint, pointType) -- FIX: Don't pack them in tables instead?
+	local window2 = ToTransform(firstPoint, pointType)
+	local window3 = ToTransform(points[2], pointType)
+	local window4 = ToTransform(points[3] or veryLastPoint, pointType)
+
+	-- Add the first spline, whose first point is not in the points table.
+	splines[1] = Spline.new(window1, window2, window3, window4, alpha, tension)
 	totalLength += splines[1].length
 
 	-- Add the middle splines
 	for i = 1, numPoints - 3 do
-		-- Shift the stream
-		stream1 = stream2
-		stream2 = stream3
-		stream3 = stream4
-		stream4 = ToTransform(points[i + 3], pointType)
+		-- Shift the window
+		window1 = window2
+		window2 = window3
+		window3 = window4
+		window4 = ToTransform(points[i + 3], pointType)
 
-		local spline = Spline.new(stream1, stream2, stream3, stream4, alpha, tension)
+		local spline = Spline.new(window1, window2, window3, window4, alpha, tension)
 		totalLength += spline.length
 		splines[i + 1] = spline
 	end
 
 	-- Add the last spline, whose fourth point is not in the points table
-	splines[numSplines] = Spline.new(stream2, stream3, stream4,
+	splines[numSplines] = Spline.new(window2, window3, window4,
 		ToTransform(veryLastPoint, pointType), alpha, tension)
 	totalLength += splines[numSplines].length
 

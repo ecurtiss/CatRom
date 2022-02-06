@@ -18,36 +18,19 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 	local pos3_pos2 = pos3 - pos2
 
 	local a, b, c
+	local t0 = 0
+	local t1 = pos1_pos0.Magnitude ^ alpha + t0
+	local t2 = pos2_pos1.Magnitude ^ alpha + t1
+	local t3 = pos3_pos2.Magnitude ^ alpha + t2
 
-	if FuzzyEq(pos1, pos2) then
-		-- The inner control points are at the same position. In order to avoid
-		-- NaNs, we simply know that the position must be pos1.
-		a = pos1 * 0 -- Either the zero Vector2 or the zero Vector3
-		b = a
-		c = a
-	elseif FuzzyEq(pos0, pos1) or FuzzyEq(pos2, pos3) then
-		-- If either of the outside control points are equal, there is no
-		-- defined way to handle this curve. Instead, we default to linear
-		-- interpolation between the inner control points.
-		-- FIX: Try a quadratic Catmull-Rom?
-		a = pos1 * 0
-		b = a
-		c = pos2_pos1
-	else
-		local t0 = 0
-		local t1 = pos1_pos0.Magnitude ^ alpha + t0
-		local t2 = pos2_pos1.Magnitude ^ alpha + t1
-		local t3 = pos3_pos2.Magnitude ^ alpha + t2
-	
-		local scalar = (1 - tension) * (t2 - t1)
-	
-		local m1 = scalar * (pos1_pos0 / (t1 - t0) - (pos2 - pos0) / (t2 - t0) + pos2_pos1 / (t2 - t1))
-		local m2 = scalar * (pos2_pos1 / (t2 - t1) - (pos3 - pos1) / (t3 - t1) + pos3_pos2 / (t3 - t2))
-	
-		a = 2 * -pos2_pos1 + m1 + m2
-		b = 3 * pos2_pos1 - 2 * m1 - m2
-		c = m1
-	end
+	local scalar = (1 - tension) * (t2 - t1)
+
+	local m1 = scalar * (pos1_pos0 / (t1 - t0) - (pos2 - pos0) / (t2 - t0) + pos2_pos1 / (t2 - t1))
+	local m2 = scalar * (pos2_pos1 / (t2 - t1) - (pos3 - pos1) / (t3 - t1) + pos3_pos2 / (t3 - t2))
+
+	a = 2 * -pos2_pos1 + m1 + m2
+	b = 3 * pos2_pos1 - 2 * m1 - m2
+	c = m1
 	
 	local self = setmetatable({
 		-- Rotations (nil if VectorCatRom)
@@ -67,6 +50,42 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 	self.length = self:SolveLength()
 	
 	return self
+end
+
+function Spline.fromPoint(trans)
+	local pos = trans[1]
+	local zero = pos * 0
+
+	return setmetatable({
+		rot0 = trans[2],
+
+		length = 0,
+
+		a = zero,
+		b = zero,
+		c = zero,
+		d = trans[1]
+	}, Spline)
+end
+
+function Spline.fromLine(trans0, trans1, trans2, trans3)
+	local pos1 = trans1[1]
+	local zero = pos1 * 0
+	local pos2_pos1 = trans2[1] - pos1
+
+	return setmetatable({
+		rot0 = trans0[2],
+		rot1 = trans1[2],
+		rot2 = trans2[2],
+		rot3 = trans3[2],
+
+		length = pos2_pos1.Magnitude,
+
+		a = zero,
+		b = zero,
+		c = pos2_pos1,
+		d = pos1
+	}, Spline)
 end
 
 -- Methods
@@ -126,6 +145,16 @@ end
 function Spline:SolveCFrame(alpha: number)
 	local position = self:SolvePosition(alpha)
 	local tangent = self:SolveVelocity(alpha)
+
+	if tangent.Magnitude == 0 then
+		local rot = self.rot0
+		if rot then
+			return CFrame.new(position.X, position.Y, position.Z, rot[2], rot[3], rot[4], rot[1])
+		else
+			return CFrame.new(position)
+		end
+	end
+
 	return CFrame.lookAt(position, position + tangent)
 end
 
@@ -150,26 +179,9 @@ function Spline:SolveLength(a: number?, b: number?)
 		return self.length
 	end
 
-	a = a or 0
-	b = b or 1
-	
-	-- Sum the distances between points.
-	-- FIX: Replace this with a better numerical integration on ||v(t)||
-	-- local lastPos = self:SolvePosition(a)
-	-- local steps = (b - a) * 100
-	-- local length = 0
-	-- for i = 1, steps do
-	-- 	i /= steps
-	-- 	local thisPos = self:SolvePosition(a + (b - a) * i)
-	-- 	length += (thisPos - lastPos).Magnitude
-	-- 	lastPos = thisPos
-	-- end
-
-	-- return length
-
 	return Integrate.Simp38Comp(function(x)
 		return self:SolveVelocity(x).Magnitude
-	end, a, b, 5)
+	end, a or 0, b or 1, 5)
 end
 
 -- TODO: Reparameterize (this will allow for Uniform methods)
