@@ -1,0 +1,23 @@
+CatRom:
+
+Length
+Improve accuracy of splineAlpha in AlphaToSpline
+
+Spline:
+
+Better handling of consecutive equal points
+	Consider now that you have to find at least two unequal points to calculate
+	the zeroth and veryLast points
+
+Better numerical integration
+Uniform reparameterization
+
+Future:
+
+Support modifying a single point
+Support number splines
+Restrict SolveBinormal, SolveCFrame, and SolveRotCFrame to the appropriate types
+
+Way way future:
+
+Support adding and removing points
