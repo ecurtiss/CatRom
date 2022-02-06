@@ -132,20 +132,14 @@ end
 function Spline:SolveRotCFrame(alpha: number)
 	local rot0 = self.rot0
 	if rot0 then -- CFrameCatRom
-		local position = self:SolvePosition(alpha)
-		local tangent = self:SolveVelocity(alpha)
-		
-		local qw, qx, qy, qz = Squad(rot0, self.rot1, self.rot2, self.rot3, alpha)
-		local qxqx = qx ^ 2
-		local qzqz = qz ^ 2
-		local s = 1 / (qw ^ 2 + qxqx + qy ^ 2 + qzqz)
-		local upVector = Vector3.new(
-			2 * s * (qx * qy - qz * qw),
-			1 - 2 * s * (qxqx + qzqz),
-			2 * s * (qy * qz + qx * qw)
-		)
-
-		return CFrame.lookAt(position, position + tangent, upVector)
+		local rot1 = self.rot1
+		if rot1 then
+			local pos = self:SolvePosition(alpha)
+			local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, alpha)
+			return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
+		else -- 1 point
+			return self:SolveCFrame(alpha)
+		end
 	else -- VectorCatRom
 		return self:SolveCFrame(alpha)
 	end
