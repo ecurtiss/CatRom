@@ -1,3 +1,5 @@
+---@diagnostic disable: undefined-global
+--# selene: allow(undefined_variable)
 --[[
 	Generates wrapper methods for the arc length parameterization of a CatRom.
 	If the following two lines are not present in the script,
@@ -63,7 +65,7 @@ end
 
 -- Get the file data and replace the generated methods
 local FileData = {}
-local InGeneratedLines = false
+InGeneratedLines = false
 
 for line in io.lines(SPLINE_FILE) do
 	if line == START_GEN then

@@ -1,52 +1,52 @@
-# CatRom
+<div align="center">
+	<img src="https://github.com/EthanCurtiss/CatRom/blob/rewrite/docs/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
+	<img src="https://github.com/EthanCurtiss/CatRom/blob/rewrite/docs/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
+	<hr/>
+</div>
+
 Creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
 
 The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve, with the key difference that CatRoms are guaranteed to pass through their control points. This allows them to chain together predictably and intuitively.
 
-![Tube](docs/tube.png)
+<img src="docs/tube.png" height="300"/>
 
 ## How to use
-This module has 2 objects: **Spline** and **Chain**.
+The CatRom constructor takes in 3 arguments:
+1. `points`: An array of all Vector2s, Vector3s, or CFrames.
+2. `alpha` [optional]: A number -- usually in [0, 1] -- that determines the "parameterization" of the spline; defaults to 0.5.
+3. `tension` [optional]: A number -- usually in [0, 1] -- that determines how loose the spline is; defaults to 0.
 
-A Spline is a CatRom defined by 4 points. A Chain is a chain of Splines. You will likely only need Chains.
-
-The Chain constructor takes in 3 arguments:
-1. `points`: An array of Vector2s, Vector3s, or CFrames.
-2. `alpha` [optional]: A number -- usually in [0, 1] -- that determines the "parameterization" of the spline. You won't need this.
-3. `tension` [optional]: A number -- usually in [0, 1] -- that determines how loose the spline is. Like adding slack to a rope.
-
-## Methods
-Each method listed has a `SolveUniform` counterpart. The uniform counterparts space points evently along the spline but incur a performance loss.
+## API
 ```lua
-Chain.new(points: array, alpha: number?, tension: number?)
+CatRom.new(points: array, alpha: number?, tension: number?)
 ```
 ```lua
-Chain:SolvePosition(t: number)
+CatRom:SolvePosition(t: number)
 ```
 ```lua
-Chain:SolveCFrame(t: number)
+CatRom:SolveCFrame(t: number)
 ```
 ```lua
-Chain:SolveRotCFrame(t: number)
+CatRom:SolveRotCFrame(t: number)
 ```
 ```lua
-Chain:SolveVelocity(t: number)
+CatRom:SolveVelocity(t: number)
 ```
 ```lua
-Chain:SolveAcceleration(t: number)
+CatRom:SolveAcceleration(t: number)
 ```
 ```lua
-Chain:SolveTangent(t: number)
+CatRom:SolveTangent(t: number)
 ```
 ```lua
-Chain:SolveNormal(t: number)
+CatRom:SolveNormal(t: number)
 ```
 ```lua
-Chain:SolveBinormal(t: number)
+CatRom:SolveBinormal(t: number)
 ```
 ```lua
-Chain:SolveCurvature(t: number)
+CatRom:SolveCurvature(t: number)
 ```
 ```lua
-Chain:SolveLength(a: number?, b: number?)
+CatRom:SolveLength(a: number?, b: number?)
 ```

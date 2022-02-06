@@ -61,59 +61,7 @@ local function Slerp(s, w0, x0, y0, z0, w1, x1, y1, z1, d)
 		z0*t0 + z1*t1
 end
 
-local function CFrameToQuaternion(cframe)
-	local _, _, _, m00, m01, m02, m10, m11, m12, m20, m21, m22 = cframe:GetComponents()
-	local trace = m00 + m11 + m22
-	if trace > 0 then
-		local s = math.sqrt(1 + trace)
-		local reciprocal = 0.5 / s
-		local quaternion = table.create(4)
-		quaternion[1] = s / 2
-		quaternion[2] = (m21 - m12) * reciprocal
-		quaternion[3] = (m02 - m20) * reciprocal
-		quaternion[4] = (m10 - m01) * reciprocal
-		return quaternion
-	else
-		local big = math.max(m00, m11, m22)
-		if big == m00 then
-			local s = math.sqrt(1 + m00 - m11 - m22)
-			local reciprocal = 0.5 / s
-			local quaternion = table.create(4)
-			quaternion[1] = (m21 - m12) * reciprocal
-			quaternion[2] = s / 2
-			quaternion[3] = (m10 + m01) * reciprocal
-			quaternion[4] = (m02 + m20) * reciprocal
-			return quaternion
-		elseif big == m11 then
-			local s = math.sqrt(1 - m00 + m11 - m22)
-			local reciprocal = 0.5 / s
-			local quaternion = table.create(4)
-			quaternion[1] = (m02 - m20) * reciprocal
-			quaternion[2] = (m10 + m01) * reciprocal
-			quaternion[3] = s / 2
-			quaternion[4] = (m21 + m12) * reciprocal
-			return quaternion
-		elseif big == m22 then
-			local s = math.sqrt(1 - m00 - m11 + m22 )
-			local reciprocal = 0.5 / s
-			local quaternion = table.create(4)
-			quaternion[1] = (m10 - m01) * reciprocal
-			quaternion[2] = (m02 + m20) * reciprocal
-			quaternion[3] = (m21 + m12) * reciprocal
-			quaternion[4] = s / 2
-			return quaternion
-		else
-			return table.create(4, nil)
-		end
-	end
-end
-
-local function Squad(cf0, cf1, cf2, cf3, alpha)
-	local q0 = CFrameToQuaternion(cf0)
-	local q1 = CFrameToQuaternion(cf1)
-	local q2 = CFrameToQuaternion(cf2)
-	local q3 = CFrameToQuaternion(cf3)
-
+local function Squad(q0, q1, q2, q3, alpha)
 	local q1w, q1x, q1y, q1z = q1[1], q1[2], q1[3], q1[4]
 	local q2w, q2x, q2y, q2z = q2[1], q2[2], q2[3], q2[4]
 
