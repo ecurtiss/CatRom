@@ -2,7 +2,7 @@ local FuzzyEq = require(script.FuzzyEq)
 local Spline = require(script.Spline)
 local ToTransform = require(script.ToTransform)
 
-local DEFAULT_ALPHA = 0
+local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
 
 local CatRom = {}

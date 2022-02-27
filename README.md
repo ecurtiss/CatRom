@@ -11,10 +11,12 @@ The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve, with t
 <img src="docs/tube.png" height="300"/>
 
 ## How to use
-The CatRom constructor takes in 3 arguments:
-1. `points`: An array of all Vector2s, Vector3s, or CFrames.
-2. `alpha` [optional]: A number -- usually in [0, 1] -- that determines the "parameterization" of the spline; defaults to 0.5.
-3. `tension` [optional]: A number -- usually in [0, 1] -- that determines how loose the spline is; defaults to 0.
+The CatRom constructor takes 3 arguments:
+1. `points`: An array of Vector2s, Vector3s, or CFrames.
+2. `alpha` [optional]: A number (usually) in [0, 1] that determines the "parameterization" of the spline; defaults to 0.5.
+3. `tension` [optional]: A number (usually) in [0, 1] that determines how loose the spline is; defaults to 0.
+
+The default `alpha` of 0.5 is the only way to avoid cusps and loops, as shown [in this paper](http://www.cemyuksel.com/research/catmullrom_param/).
 
 ## API
 ```lua
