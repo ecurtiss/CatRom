@@ -17,7 +17,7 @@ local Integrate = {}
 
 -- Linear interpolation
 local function lerp(a, b, t)
-	return a * (t - 1) + b * t
+	return a * (1 - t) + b * t
 end
 
 -- Simpson's 1/3 rule
