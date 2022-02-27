@@ -1,6 +1,6 @@
 [package]
 name = "ethancurtiss/catrom"
-version = "0.4.1"
+version = "0.4.2"
 realm = "shared"
 registry = "https://github.com/upliftgames/wally-index"
 exclude = ["codegen", "docs", "literature", "Tube.rbxl"]
