@@ -1,12 +1,50 @@
-local FuzzyEq = require(script.FuzzyEq)
 local Spline = require(script.Spline)
-local ToTransform = require(script.ToTransform)
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
 
 local CatRom = {}
 CatRom.__index = CatRom
+
+local EPSILON = 1e-4
+local function FuzzyEq(a, b)
+	local aType = typeof(a)
+
+	if aType == "number" then
+		return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
+	elseif aType == "Vector3" then
+		return a:FuzzyEq(b, EPSILON)
+	elseif aType == "Vector2" then
+		local aX, bX = a.X, b.X
+		local aY, bY = a.Y, b.Y
+		return  aX == bX or math.abs(aX - bX) <= (math.abs(aX) + 1) * EPSILON
+			and aY == bY or math.abs(aY - bY) <= (math.abs(aY) + 1) * EPSILON
+	elseif aType == "CFrame" then
+		return a.Position:FuzzyEq(b.Position, EPSILON)
+			and a.RightVector:FuzzyEq(b.RightVector, EPSILON)
+			and a.UpVector:FuzzyEq(b.UpVector, EPSILON)
+			and a.LookVector:FuzzyEq(b.LookVector, EPSILON)
+	end
+
+	return false
+end
+
+local function CFrameToQuaternion(cframe)
+	local axis, angle = cframe:ToAxisAngle()
+	angle /= 2
+	axis = math.sin(angle) * axis
+	return {math.cos(angle), axis.X, axis.Y, axis.Z}
+end
+
+local function ToTransform(point, pointType)
+	if pointType == "Vector2" or pointType == "Vector3" then
+		return {point}
+	elseif pointType == "CFrame" then
+		return {point.Position, CFrameToQuaternion(point)}
+	end
+
+	return nil
+end
 
 function CatRom.new(points, alpha, tension)
 	alpha = alpha or DEFAULT_ALPHA -- Parameterization exponent
