@@ -90,16 +90,12 @@ end
 
 -- Methods
 function Spline:SolvePosition(alpha: number)
-	-- r(t)
-	-- This is Horner's method applied to
-	-- self.a * alpha ^ 3 + self.b * alpha ^ 2 + self.c * alpha + self.d
+	-- r(t) using Horner's method
 	return self.d + alpha * (self.c + alpha * (self.b + alpha * self.a))
 end
 
 function Spline:SolveVelocity(alpha: number)
-	-- r'(t)
-	-- This is Horner's method applied to
-	-- 3 * self.a * alpha ^ 2 + 2 * self.b * alpha + self.c
+	-- r'(t) using Horner's method
 	return self.c + alpha * (2 * self.b + alpha * 3 * self.a)
 end
 

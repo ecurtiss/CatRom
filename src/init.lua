@@ -21,7 +21,7 @@ function CatRom.new(points, alpha, tension)
 	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
 		"Points must be a table of Vector2s, Vector3s, or CFrames.")
 	for _, point in ipairs(points) do
-		assert(typeof(point) == pointType, "All points must be of the same type.")
+		assert(typeof(point) == pointType, "All points must have the same type.")
 	end
 
 	-- Remove equal adjacent points
