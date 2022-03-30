@@ -1,5 +1,4 @@
-local FuzzyEq = require(script.Parent.FuzzyEq)
-local Integrate = require(script.Parent.Integrate)
+local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 
 local Spline = {}
@@ -171,13 +170,16 @@ function Spline:SolveRotCFrame(alpha: number)
 end
 
 function Spline:SolveLength(a: number?, b: number?)
-	if self.length and (not a and not b or a == 0 and b == 1) then
+	a = a or 0
+	b = b or 1
+
+	if a == 0 and b == 1 and self.length then
 		return self.length
 	end
 
-	return Integrate.Simp38Comp(function(x)
+	return GaussLegendre.Ten(function(x)
 		return self:SolveVelocity(x).Magnitude
-	end, a or 0, b or 1, 5)
+	end, a, b)
 end
 
 -- TODO: Reparameterize (this will allow for Uniform methods)
