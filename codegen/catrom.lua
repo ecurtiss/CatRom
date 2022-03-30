@@ -36,7 +36,7 @@ for line in io.lines(SPLINE_FILE) do
 			local methodName = string.match(line, "(%a+)%(", 22)
 			local method = {
 				"function CatRom:Solve" .. methodName .. string.sub(line, stop),
-				"\tlocal spline, splineAlpha = AlphaToSpline(self, alpha)",
+				"\tlocal spline, splineAlpha = self:_AlphaToSpline(alpha)",
 				"\treturn spline:Solve" .. methodName .. "(splineAlpha)"
 			}
 

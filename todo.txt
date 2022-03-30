@@ -2,14 +2,9 @@
 
 * Proper documentation
 
-[CatRom]
-
-* Improve accuracy of splineAlpha in :AlphaToSpline()
-
 [Spline]
 
-* Faster and more precise numerical integration for :SolveLength()
-* Add uniform reparameterization and accompanying methods
+* Store the quaternion x, y, z components as a Vector3?
 
 [Future]
 

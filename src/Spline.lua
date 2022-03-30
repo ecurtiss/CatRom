@@ -1,6 +1,8 @@
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 
+local MAX_NEWTON_ITERATIONS = 16
+
 local Spline = {}
 Spline.__index = Spline
 
@@ -182,9 +184,69 @@ function Spline:SolveLength(a: number?, b: number?)
 	end, a, b)
 end
 
--- TODO: Reparameterize (this will allow for Uniform methods)
+function Spline:Reparameterize(alpha: number)
+	-- Newton's method
+	if alpha == 0 or alpha == 1 then
+		return alpha
+	end
+
+	local function f(b)
+		return GaussLegendre.Five(function(x)
+			return self:SolveVelocity(x).Magnitude
+		end, 0, b) / self.length - alpha
+	end
+
+	local iterations = 0
+	local x = alpha
+	local y = f(x)
+	while math.abs(y) > 1e-4 and iterations < MAX_NEWTON_ITERATIONS do
+		iterations += 1
+		local denom = self:SolveVelocity(x).Magnitude / self.length
+		if denom == 0 then
+			error("Divide by 0 error")
+		end
+		x -= y / denom
+		y = f(x)
+	end
+
+	if iterations >= MAX_NEWTON_ITERATIONS then
+		error("Failed to reparameterize spline")
+	end
+
+	return x
+end
 
 ---- START GENERATED METHODS
+function Spline:SolveUniformPosition(alpha: number)
+	return self:SolvePosition(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformVelocity(alpha: number)
+	return self:SolveVelocity(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformAcceleration(alpha: number)
+	return self:SolveAcceleration(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformTangent(alpha: number)
+	return self:SolveTangent(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformNormal(alpha: number)
+	return self:SolveNormal(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformBinormal(alpha: number)
+	return self:SolveBinormal(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformCurvature(alpha: number)
+	return self:SolveCurvature(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformCFrame(alpha: number)
+	return self:SolveCFrame(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformRotCFrame(alpha: number)
+	return self:SolveRotCFrame(self:Reparameterize(alpha))
+end
+function Spline:SolveUniformLength(a: number?, b: number?)
+	return self:SolveLength(self:Reparameterize(a), self:Reparameterize(b))
+end
 ---- END GENERATED METHODS
 
 return Spline
