@@ -36,22 +36,17 @@ for line in io.lines(SPLINE_FILE) do
 			-- Get everything in the method's parentheses
 			local inputs = string.match(string.sub(line, stop + 1), "(.+)%)")
 
-			-- Get the input arguments
-			local args = {}
-			for arg in string.gmatch(inputs, "(%a+)(%:)") do
-				table.insert(method, string.format("\t%s = self:_Reparameterize(%s)", arg, arg))
-				table.insert(args, arg)
-			end
-
 			-- Call the method
 			local methodCall = string.format("\treturn self:Solve%s(", methodName)
-			for i, arg in ipairs(args) do
-				if i == #args then
-					methodCall = methodCall .. arg
-				else
-					methodCall = methodCall .. arg .. ", "
-				end
+
+			-- Reparameterize the arguments
+			local i = 1
+			for arg in string.gmatch(inputs, "(%a+)(%:)") do
+				methodCall = methodCall .. (i > 1 and ", " or "") .. string.format("self:Reparameterize(%s)", arg)
+				i = i + 1
 			end
+
+			-- Finish the method call
 			methodCall = methodCall .. ")"
 			table.insert(method, methodCall)
 
