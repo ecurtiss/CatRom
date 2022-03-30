@@ -19,6 +19,7 @@ The CatRom constructor takes 3 arguments:
 The default `alpha` of 0.5 is the only way to avoid cusps and loops, as shown [in this paper](http://www.cemyuksel.com/research/catmullrom_param/).
 
 ## API
+***Note:*** *For each `Solve` method, there exists a `SolveUniform` counterpart that spaces the input(s) uniformly along the curve. Be aware that the uniform methods are slower to compute.*
 ```lua
 CatRom.new(points: array, alpha: number?, tension: number?)
 ```
