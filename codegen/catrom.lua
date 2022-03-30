@@ -83,4 +83,4 @@ for i, line in ipairs(FileData) do
 	end
 end
 
-file.close()
+file:close()
