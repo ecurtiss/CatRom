@@ -51,15 +51,15 @@ function CatRom.new(points, alpha, tension)
 	tension = tension or DEFAULT_TENSION
 
 	-- Type check
-	assert(type(points) == "table", "Points must be a table.")
-	assert(type(alpha) == "number", "Alpha must be a number.")
-	assert(type(tension) == "number", "Tension must be a number.")
-	assert(#points > 0, "Points table cannot be empty.")
+	assert(type(points) == "table", "Points must be a table")
+	assert(type(alpha) == "number", "Alpha must be a number")
+	assert(type(tension) == "number", "Tension must be a number")
+	assert(#points > 0, "Points table cannot be empty")
 	local pointType = typeof(points[1])
 	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
-		"Points must be a table of Vector2s, Vector3s, or CFrames.")
+		"Points must be a table of Vector2s, Vector3s, or CFrames")
 	for _, point in ipairs(points) do
-		assert(typeof(point) == pointType, "All points must have the same type.")
+		assert(typeof(point) == pointType, "All points must have the same type")
 	end
 
 	-- Remove equal adjacent points

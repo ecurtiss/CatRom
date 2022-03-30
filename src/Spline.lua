@@ -113,7 +113,7 @@ function Spline:SolveNormal(alpha: number)
 	-- The return is equivalent to N(t) when the derivatives are carried out.
 	-- In particular, the vector being unitized is T'(t) * ||r'(t)|| ^ 3, but
 	-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we unitize it
-	-- anyway. This scaled version is simply faster to compute.
+	-- anyway. This scaled version is faster to compute.
 	local rp = self:SolveVelocity(alpha) -- p for prime (1st deriv.)
 	local rpp = self:SolveAcceleration(alpha) -- pp for prime prime (2nd deriv.)
 	return (rpp * rp.Magnitude ^ 2 - rp * rpp:Dot(rp)).Unit
