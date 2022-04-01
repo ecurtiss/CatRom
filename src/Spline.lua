@@ -190,19 +190,34 @@ function Spline:Reparameterize(s: number)
 		return s
 	end
 
-	-- Newton's method
+	-- Hybrid of Newton's method and bisection
+	-- https://www.geometrictools.com/Documentation/MovingAlongCurveSpecifiedSpeed.pdf
 	local integrand = function(x)
 		return self:SolveVelocity(x).Magnitude
 	end
 
 	local t = s
-	for i = 1, MAX_NEWTON_ITERATIONS do
+	local lower = 0
+	local upper = 1
+
+	for _ = 1, MAX_NEWTON_ITERATIONS do
 		local f =  GaussLegendre.Ten(integrand, 0, t) / self.length - s
 		if math.abs(f) < EPSILON then
 			return t
 		end
+
 		local g = self:SolveVelocity(t).Magnitude / self.length
-		t -= f / g
+		local candidate = t - f / g
+
+		if f > 0 then
+			-- Solution is below the current t
+			upper = t
+			t = candidate <= lower and (upper + lower) / 2 or candidate
+		else
+			-- Solution is above the current t
+			lower = t
+			t = candidate >= upper and (upper + lower) / 2 or candidate
+		end
 	end
 
 	warn("Failed to reparameterize; falling back to input")
