@@ -2,6 +2,7 @@ local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 
 local MAX_NEWTON_ITERATIONS = 16
+local EPSILON = 1e-4
 
 local Spline = {}
 Spline.__index = Spline
@@ -184,36 +185,28 @@ function Spline:SolveLength(a: number?, b: number?)
 	end, a, b)
 end
 
-function Spline:Reparameterize(alpha: number)
+function Spline:Reparameterize(s: number)
+	if s == 0 or s == 1 then
+		return s
+	end
+
 	-- Newton's method
-	if alpha == 0 or alpha == 1 then
-		return alpha
+	local integrand = function(x)
+		return self:SolveVelocity(x).Magnitude
 	end
 
-	local function f(b)
-		return GaussLegendre.Five(function(x)
-			return self:SolveVelocity(x).Magnitude
-		end, 0, b) / self.length - alpha
-	end
-
-	local iterations = 0
-	local x = alpha
-	local y = f(x)
-	while math.abs(y) > 1e-4 and iterations < MAX_NEWTON_ITERATIONS do
-		iterations += 1
-		local denom = self:SolveVelocity(x).Magnitude / self.length
-		if denom == 0 then
-			error("Divide by 0 error")
+	local t = s
+	for i = 1, MAX_NEWTON_ITERATIONS do
+		local f =  GaussLegendre.Ten(integrand, 0, t) / self.length - s
+		if math.abs(f) < EPSILON then
+			return t
 		end
-		x -= y / denom
-		y = f(x)
+		local g = self:SolveVelocity(t).Magnitude / self.length
+		t -= f / g
 	end
 
-	if iterations >= MAX_NEWTON_ITERATIONS then
-		error("Failed to reparameterize spline")
-	end
-
-	return x
+	warn("Failed to reparameterize; falling back to input")
+	return s
 end
 
 ---- START GENERATED METHODS
