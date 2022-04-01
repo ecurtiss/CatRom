@@ -90,45 +90,45 @@ function Spline.fromLine(trans0, trans1, trans2, trans3)
 end
 
 -- Methods
-function Spline:SolvePosition(alpha: number)
+function Spline:SolvePosition(t: number)
 	-- r(t) using Horner's method
-	return self.d + alpha * (self.c + alpha * (self.b + alpha * self.a))
+	return self.d + t * (self.c + t * (self.b + t * self.a))
 end
 
-function Spline:SolveVelocity(alpha: number)
+function Spline:SolveVelocity(t: number)
 	-- r'(t) using Horner's method
-	return self.c + alpha * (2 * self.b + alpha * 3 * self.a)
+	return self.c + t * (2 * self.b + t * 3 * self.a)
 end
 
-function Spline:SolveAcceleration(alpha: number)
+function Spline:SolveAcceleration(t: number)
 	-- r''(t)
-	return 6 * self.a * alpha + 2 * self.b
+	return 6 * self.a * t + 2 * self.b
 end
 
-function Spline:SolveTangent(alpha: number)
+function Spline:SolveTangent(t: number)
 	-- T(t) = r'(t) / ||r'(t)||
-	return self:SolveVelocity(alpha).Unit
+	return self:SolveVelocity(t).Unit
 end
 
-function Spline:SolveNormal(alpha: number)
+function Spline:SolveNormal(t: number)
 	-- N(t) = T'(t) / ||T'(t)||
 	-- The return is equivalent to N(t) when the derivatives are carried out.
 	-- In particular, the vector being unitized is T'(t) * ||r'(t)|| ^ 3, but
 	-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we unitize it
 	-- anyway. This scaled version is faster to compute.
-	local rp = self:SolveVelocity(alpha) -- p for prime (1st deriv.)
-	local rpp = self:SolveAcceleration(alpha) -- pp for prime prime (2nd deriv.)
+	local rp = self:SolveVelocity(t) -- p for prime (1st deriv.)
+	local rpp = self:SolveAcceleration(t) -- pp for prime prime (2nd deriv.)
 	return (rpp * rp.Magnitude ^ 2 - rp * rpp:Dot(rp)).Unit
 end
 
-function Spline:SolveBinormal(alpha: number)
+function Spline:SolveBinormal(t: number)
 	-- T(t) x N(t)
-	return self:SolveTangent(alpha):Cross(self:SolveNormal(alpha))
+	return self:SolveTangent(t):Cross(self:SolveNormal(t))
 end
 
-function Spline:SolveCurvature(alpha: number)
-	local rp = self:SolveVelocity(alpha)
-	local rpp = self:SolveAcceleration(alpha)
+function Spline:SolveCurvature(t: number)
+	local rp = self:SolveVelocity(t)
+	local rpp = self:SolveAcceleration(t)
 	local rpMag = rp.Magnitude
 	local tangentp = rpp / rpMag - rp * rp:Dot(rpp) / rpMag ^ 3
 
@@ -139,9 +139,9 @@ function Spline:SolveCurvature(alpha: number)
 	return curvature, unitNormal
 end
 
-function Spline:SolveCFrame(alpha: number)
-	local position = self:SolvePosition(alpha)
-	local tangent = self:SolveVelocity(alpha)
+function Spline:SolveCFrame(t: number)
+	local position = self:SolvePosition(t)
+	local tangent = self:SolveVelocity(t)
 
 	if tangent.Magnitude == 0 then
 		local rot = self.rot0
@@ -155,19 +155,19 @@ function Spline:SolveCFrame(alpha: number)
 	return CFrame.lookAt(position, position + tangent)
 end
 
-function Spline:SolveRotCFrame(alpha: number)
+function Spline:SolveRotCFrame(t: number)
 	local rot0 = self.rot0
 	if rot0 then -- CFrameCatRom
 		local rot1 = self.rot1
 		if rot1 then
-			local pos = self:SolvePosition(alpha)
-			local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, alpha)
+			local pos = self:SolvePosition(t)
+			local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, t)
 			return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
 		else -- 1 point
-			return self:SolveCFrame(alpha)
+			return self:SolveCFrame(t)
 		end
 	else -- VectorCatRom
-		return self:SolveCFrame(alpha)
+		return self:SolveCFrame(t)
 	end
 end
 
@@ -217,32 +217,32 @@ function Spline:Reparameterize(alpha: number)
 end
 
 ---- START GENERATED METHODS
-function Spline:SolveUniformPosition(alpha: number)
-	return self:SolvePosition(self:Reparameterize(alpha))
+function Spline:SolveUniformPosition(t: number)
+	return self:SolvePosition(self:Reparameterize(t))
 end
-function Spline:SolveUniformVelocity(alpha: number)
-	return self:SolveVelocity(self:Reparameterize(alpha))
+function Spline:SolveUniformVelocity(t: number)
+	return self:SolveVelocity(self:Reparameterize(t))
 end
-function Spline:SolveUniformAcceleration(alpha: number)
-	return self:SolveAcceleration(self:Reparameterize(alpha))
+function Spline:SolveUniformAcceleration(t: number)
+	return self:SolveAcceleration(self:Reparameterize(t))
 end
-function Spline:SolveUniformTangent(alpha: number)
-	return self:SolveTangent(self:Reparameterize(alpha))
+function Spline:SolveUniformTangent(t: number)
+	return self:SolveTangent(self:Reparameterize(t))
 end
-function Spline:SolveUniformNormal(alpha: number)
-	return self:SolveNormal(self:Reparameterize(alpha))
+function Spline:SolveUniformNormal(t: number)
+	return self:SolveNormal(self:Reparameterize(t))
 end
-function Spline:SolveUniformBinormal(alpha: number)
-	return self:SolveBinormal(self:Reparameterize(alpha))
+function Spline:SolveUniformBinormal(t: number)
+	return self:SolveBinormal(self:Reparameterize(t))
 end
-function Spline:SolveUniformCurvature(alpha: number)
-	return self:SolveCurvature(self:Reparameterize(alpha))
+function Spline:SolveUniformCurvature(t: number)
+	return self:SolveCurvature(self:Reparameterize(t))
 end
-function Spline:SolveUniformCFrame(alpha: number)
-	return self:SolveCFrame(self:Reparameterize(alpha))
+function Spline:SolveUniformCFrame(t: number)
+	return self:SolveCFrame(self:Reparameterize(t))
 end
-function Spline:SolveUniformRotCFrame(alpha: number)
-	return self:SolveRotCFrame(self:Reparameterize(alpha))
+function Spline:SolveUniformRotCFrame(t: number)
+	return self:SolveRotCFrame(self:Reparameterize(t))
 end
 function Spline:SolveUniformLength(a: number?, b: number?)
 	return self:SolveLength(self:Reparameterize(a), self:Reparameterize(b))

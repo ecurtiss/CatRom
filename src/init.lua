@@ -179,31 +179,31 @@ function CatRom.new(points, alpha, tension)
 	}, CatRom)
 end
 
--- Binary search for the spline in the chain that the alpha corresponds to.
--- Ex. For an alpha of 50%, we must find the spline in the chain that contains
+-- Binary search for the spline in the chain that the t corresponds to.
+-- Ex. For an t of 50%, we must find the spline in the chain that contains
 -- the 50% mark.
-function CatRom:_AlphaToSpline(alpha)
+function CatRom:GetSplineFromT(t)
 	local splines = self.splines
 	local domains = self.domains
 	local numSplines = #splines
 
 	-- There is only one option if there is one spline
 	if numSplines == 1 then
-		return splines[1], alpha
+		return splines[1], t
 	end
 
-	-- Special cases for when alpha is on the border or outside of [0, 1]
-	if alpha < 0 then
-		return splines[1], alpha / domains[1], 1
-	elseif alpha == 0 then
+	-- Special cases for when t is on the border or outside of [0, 1]
+	if t < 0 then
+		return splines[1], t / domains[1], 1
+	elseif t == 0 then
 		return splines[1], 0, 1
-	elseif alpha == 1 then
+	elseif t == 1 then
 		return splines[numSplines], 1, numSplines
-	elseif alpha > 1 then
-		return splines[numSplines], (alpha - domains[numSplines]) / (1 - domains[numSplines]), numSplines
+	elseif t > 1 then
+		return splines[numSplines], (t - domains[numSplines]) / (1 - domains[numSplines]), numSplines
 	end
 
-	-- Binary search for the spline containing alpha
+	-- Binary search for the spline containing t
 	local left = 1
 	local right = numSplines + 1
 
@@ -211,13 +211,13 @@ function CatRom:_AlphaToSpline(alpha)
 		local mid = math.floor((left + right) / 2)
 		local intervalStart = domains[mid]
 
-		if alpha >= intervalStart then
+		if t >= intervalStart then
 			local intervalEnd = mid == numSplines and 1 or domains[mid + 1]
 
-			if alpha <= intervalEnd then
+			if t <= intervalEnd then
 				local spline = splines[mid]
-				local splineAlpha = (alpha - intervalStart) / (intervalEnd - intervalStart)
-				return spline, splineAlpha, mid
+				local splineT = (t - intervalStart) / (intervalEnd - intervalStart)
+				return spline, splineT, mid
 			else
 				left = mid + 1
 			end
@@ -228,7 +228,7 @@ function CatRom:_AlphaToSpline(alpha)
 
 	-- This should theoretically never be possible, but if it occurs, then we
 	-- should not fail silently
-	error("Failed to get spline from alpha")
+	error("Failed to get spline from t")
 end
 
 function CatRom:SolveLength(a, b)
@@ -247,11 +247,11 @@ function CatRom:SolveLength(a, b)
 		return self.length
 	end
 
-	local splineA, splineAAlpha, splineAIndex = self:_AlphaToSpline(a)
-	local splineB, splineBAlpha, splineBIndex = self:_AlphaToSpline(b)
+	local splineA, splineAT, splineAIndex = self:GetSplineFromT(a)
+	local splineB, splineBT, splineBIndex = self:GetSplineFromT(b)
 
-	local lengthA = splineA:SolveLength(splineAAlpha, 1)
-	local lengthB = splineB:SolveLength(0, splineBAlpha)
+	local lengthA = splineA:SolveLength(splineAT, 1)
+	local lengthB = splineB:SolveLength(0, splineBT)
 
 	local intermediateLengths = 0
 	for i = splineAIndex + 1, splineBIndex - 1 do
@@ -269,11 +269,11 @@ function CatRom:SolveUniformLength(a, b)
 		return self.length
 	end
 
-	local splineA, splineAAlpha, splineAIndex = self:_AlphaToSpline(a)
-	local splineB, splineBAlpha, splineBIndex = self:_AlphaToSpline(b)
+	local splineA, splineAT, splineAIndex = self:GetSplineFromT(a)
+	local splineB, splineBT, splineBIndex = self:GetSplineFromT(b)
 
-	local lengthA = splineA:SolveUniformLength(splineAAlpha, 1)
-	local lengthB = splineB:SolveUniformLength(0, splineBAlpha)
+	local lengthA = splineA:SolveUniformLength(splineAT, 1)
+	local lengthB = splineB:SolveUniformLength(0, splineBT)
 
 	local intermediateLengths = 0
 	for i = splineAIndex + 1, splineBIndex - 1 do
@@ -284,77 +284,77 @@ function CatRom:SolveUniformLength(a, b)
 end
 
 ---- START GENERATED METHODS
-function CatRom:SolvePosition(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolvePosition(splineAlpha)
+function CatRom:SolvePosition(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolvePosition(splineT)
 end
-function CatRom:SolveVelocity(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveVelocity(splineAlpha)
+function CatRom:SolveVelocity(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveVelocity(splineT)
 end
-function CatRom:SolveAcceleration(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveAcceleration(splineAlpha)
+function CatRom:SolveAcceleration(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveAcceleration(splineT)
 end
-function CatRom:SolveTangent(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveTangent(splineAlpha)
+function CatRom:SolveTangent(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveTangent(splineT)
 end
-function CatRom:SolveNormal(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveNormal(splineAlpha)
+function CatRom:SolveNormal(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveNormal(splineT)
 end
-function CatRom:SolveBinormal(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveBinormal(splineAlpha)
+function CatRom:SolveBinormal(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveBinormal(splineT)
 end
-function CatRom:SolveCurvature(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveCurvature(splineAlpha)
+function CatRom:SolveCurvature(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveCurvature(splineT)
 end
-function CatRom:SolveCFrame(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveCFrame(splineAlpha)
+function CatRom:SolveCFrame(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveCFrame(splineT)
 end
-function CatRom:SolveRotCFrame(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveRotCFrame(splineAlpha)
+function CatRom:SolveRotCFrame(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveRotCFrame(splineT)
 end
-function CatRom:SolveUniformPosition(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformPosition(splineAlpha)
+function CatRom:SolveUniformPosition(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformPosition(splineT)
 end
-function CatRom:SolveUniformVelocity(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformVelocity(splineAlpha)
+function CatRom:SolveUniformVelocity(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformVelocity(splineT)
 end
-function CatRom:SolveUniformAcceleration(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformAcceleration(splineAlpha)
+function CatRom:SolveUniformAcceleration(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformAcceleration(splineT)
 end
-function CatRom:SolveUniformTangent(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformTangent(splineAlpha)
+function CatRom:SolveUniformTangent(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformTangent(splineT)
 end
-function CatRom:SolveUniformNormal(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformNormal(splineAlpha)
+function CatRom:SolveUniformNormal(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformNormal(splineT)
 end
-function CatRom:SolveUniformBinormal(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformBinormal(splineAlpha)
+function CatRom:SolveUniformBinormal(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformBinormal(splineT)
 end
-function CatRom:SolveUniformCurvature(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformCurvature(splineAlpha)
+function CatRom:SolveUniformCurvature(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformCurvature(splineT)
 end
-function CatRom:SolveUniformCFrame(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformCFrame(splineAlpha)
+function CatRom:SolveUniformCFrame(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformCFrame(splineT)
 end
-function CatRom:SolveUniformRotCFrame(alpha: number)
-	local spline, splineAlpha = self:_AlphaToSpline(alpha)
-	return spline:SolveUniformRotCFrame(splineAlpha)
+function CatRom:SolveUniformRotCFrame(t: number)
+	local spline, splineT = self:GetSplineFromT(t)
+	return spline:SolveUniformRotCFrame(splineT)
 end
 ---- END GENERATED METHODS
 

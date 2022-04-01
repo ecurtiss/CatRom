@@ -32,12 +32,12 @@ for line in io.lines(SPLINE_FILE) do
 			table.insert(args, arg)
 		end
 
-		if #args == 1 and args[1] == "alpha" then
+		if #args == 1 and args[1] == "t" then
 			local methodName = string.match(line, "(%a+)%(", 22)
 			local method = {
 				"function CatRom:Solve" .. methodName .. string.sub(line, stop),
-				"\tlocal spline, splineAlpha = self:_AlphaToSpline(alpha)",
-				"\treturn spline:Solve" .. methodName .. "(splineAlpha)"
+				"\tlocal spline, splineT = self:GetSplineFromT(t)",
+				"\treturn spline:Solve" .. methodName .. "(splineT)"
 			}
 
 			-- End the method
