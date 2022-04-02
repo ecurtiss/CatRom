@@ -47,7 +47,9 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 		a = a,
 		b = b,
 		c = c,
-		d = pos1
+		d = pos1,
+
+		arcLengthParamsLUT = nil
 	}, Spline)
 	self.length = self:SolveLength()
 	
@@ -66,7 +68,9 @@ function Spline.fromPoint(trans)
 		a = zero,
 		b = zero,
 		c = zero,
-		d = trans[1]
+		d = trans[1],
+
+		arcLengthParamsLUT = nil
 	}, Spline)
 end
 
@@ -86,7 +90,9 @@ function Spline.fromLine(trans0, trans1, trans2, trans3)
 		a = zero,
 		b = zero,
 		c = pos2_pos1,
-		d = pos1
+		d = pos1,
+
+		arcLengthParamsLUT = nil
 	}, Spline)
 end
 
@@ -185,9 +191,36 @@ function Spline:SolveLength(a: number?, b: number?)
 	end, a, b)
 end
 
+-- Reparameterizes s in terms of arc length, i.e. returns the input t that
+-- yields the point s of the way along the spline
 function Spline:Reparameterize(s: number)
 	if s == 0 or s == 1 then
 		return s
+	elseif self.length == 0 then
+		return 0
+	end
+
+	local arcLengthParams = self.arcLengthParams
+	if arcLengthParams then
+		local numIntervals = #self.arcLengthParams - 1
+		local intervalIndex = math.floor(s * numIntervals) + 1
+		local t = s * numIntervals - intervalIndex + 1
+		return arcLengthParams[intervalIndex] * (1 - t)
+			 + arcLengthParams[intervalIndex + 1] * t
+	else
+		return self:_ReparameterizeHybrid(s)
+	end
+end
+
+
+-- Performs the actual arc length parameterization
+-- s = \int_{0}^{t} ||r'(t)||dt = F(t) - F(0) = F(t)
+-- where t is solved as the root-finding problem F(t) - s = 0.
+function Spline:_ReparameterizeHybrid(s: number)
+	if s == 0 or s == 1 then
+		return s
+	elseif self.length == 0 then
+		return 0
 	end
 
 	-- Hybrid of Newton's method and bisection
@@ -222,6 +255,24 @@ function Spline:Reparameterize(s: number)
 
 	warn("Failed to reparameterize; falling back to input")
 	return s
+end
+
+-- Precomputes a lookup table of numIntervals + 1 evenly spaced arc length
+-- parameters that are used to piecewise linearly interpolate the real
+-- parameterization function
+function Spline:_PrecomputeArcLengthParams(numIntervals: number)
+	if self.length == 0 then
+		return
+	end
+
+	local arcLengthParamsLUT = table.create(numIntervals + 1)
+	arcLengthParamsLUT[1] = 0
+	arcLengthParamsLUT[numIntervals + 1] = 1
+	for i = 2, numIntervals do
+		arcLengthParamsLUT[i] = self:_ReparameterizeHybrid((i - 1) / numIntervals)
+	end
+
+	self.arcLengthParamsLUT = arcLengthParamsLUT
 end
 
 ---- START GENERATED METHODS

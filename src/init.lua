@@ -2,7 +2,10 @@ local Spline = require(script.Spline)
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
+local DEFAULT_PRECOMPUTE_INTERVALS = 16
 local EPSILON = 1e-4
+
+type Point = CFrame | Vector2 | Vector3
 
 local CatRom = {}
 CatRom.__index = CatRom
@@ -46,7 +49,7 @@ local function ToTransform(point, pointType)
 	return nil
 end
 
-function CatRom.new(points, alpha, tension)
+function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	alpha = alpha or DEFAULT_ALPHA -- Parameterization exponent
 	tension = tension or DEFAULT_TENSION
 
@@ -182,7 +185,7 @@ end
 -- Binary search for the spline in the chain that the t corresponds to.
 -- Ex. For an t of 50%, we must find the spline in the chain that contains
 -- the 50% mark.
-function CatRom:GetSplineFromT(t)
+function CatRom:GetSplineFromT(t: number)
 	local splines = self.splines
 	local domains = self.domains
 	local numSplines = #splines
@@ -231,7 +234,14 @@ function CatRom:GetSplineFromT(t)
 	error("Failed to get spline from t")
 end
 
-function CatRom:SolveLength(a, b)
+function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
+	numIntervals = numIntervals and math.max(1, math.round(numIntervals)) or DEFAULT_PRECOMPUTE_INTERVALS
+	for _, spline in ipairs(self.splines) do
+		spline:_PrecomputeArcLengthParams(numIntervals)
+	end
+end
+
+function CatRom:SolveLength(a: number?, b: number?)
 	-- Algorithm outline:
 	-- Binary search for the two splines that contain the a and b positions
 	-- Find where a is in the first spline
@@ -261,7 +271,7 @@ function CatRom:SolveLength(a, b)
 	return lengthA + intermediateLengths + lengthB
 end
 
-function CatRom:SolveUniformLength(a, b)
+function CatRom:SolveUniformLength(a: number?, b: number?)
 	a = a or 0
 	b = b or 1
 
