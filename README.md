@@ -53,3 +53,29 @@ CatRom:SolveCurvature(t: number)
 ```lua
 CatRom:SolveLength(a: number?, b: number?)
 ```
+```lua
+CatRom:PrecomputeArcLengthParams(numIntervals: number?)
+```
+
+## Performance Tips
+### 1. `Uniform` methods
+If you are calling many `Uniform` methods, you should call `PrecomputeArcLengthParams()` immediately after construction. This will make your `Uniform` calls less accurate but cheaper to compute. The accuracy can be further tuned using the `numIntervals` argument; lower is faster and less accurate, higher is slower and more accurate (defaults to 16).
+
+### 2. Repeated inputs
+If you are calling many methods on the *same* input like so:
+```lua
+local t -- number in [0, 1]
+local catRom -- a CatRom object
+catRom:SolvePosition(t)
+catRom:SolveVelocity(t)
+catRom:SolveTangent(t)
+```
+then it is faster to instead do
+```lua
+local t -- number in [0, 1]
+local catRom -- a CatRom object
+local spline, splineT = catRom:GetSplineFromT(t)
+spline:SolvePosition(splineT)
+spline:SolveVelocity(splineT)
+spline:SolveTangent(splineT)
+```
