@@ -343,7 +343,7 @@ function CatRom:_computeMinRotationFrames(pointCount: number, _pos,  _norm, _tan
 	end
 	local function toCFrame(pV, uV, lV, rV)
 		-- Note that this will flip the lookVector.
-		return CFrame.new(pV.X, pV.Y, pV.Z, rV.X, uV.X, lV.X, rV.Y, uV.Y, lV.Y, rV.Z, uV.Z, lV.Z):Orthonormalize()
+		return CFrame.new(pV.X, pV.Y, pV.Z, rV.X, uV.X, -lV.X, rV.Y, uV.Y, -lV.Y, rV.Z, uV.Z, -lV.Z):Orthonormalize()
 	end
 
 	local pointArray = table.create(pointCount)
