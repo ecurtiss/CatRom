@@ -200,13 +200,13 @@ function Spline:Reparameterize(s: number)
 		return 0
 	end
 
-	local arcLengthParams = self.arcLengthParams
-	if arcLengthParams then
-		local numIntervals = #self.arcLengthParams - 1
+	local arcLengthParamsLUT = self.arcLengthParamsLUT
+	if arcLengthParamsLUT then
+		local numIntervals = #self.arcLengthParamsLUT - 1
 		local intervalIndex = math.floor(s * numIntervals) + 1
 		local t = s * numIntervals - intervalIndex + 1
-		return arcLengthParams[intervalIndex] * (1 - t)
-			 + arcLengthParams[intervalIndex + 1] * t
+		return arcLengthParamsLUT[intervalIndex] * (1 - t)
+			 + arcLengthParamsLUT[intervalIndex + 1] * t
 	else
 		return self:_ReparameterizeHybrid(s)
 	end
