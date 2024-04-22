@@ -260,6 +260,10 @@ function CatRom:SolveLength(a: number?, b: number?)
 	local splineA, splineAT, splineAIndex = self:GetSplineFromT(a)
 	local splineB, splineBT, splineBIndex = self:GetSplineFromT(b)
 
+	if splineAIndex == splineBIndex then
+		return splineA:SolveLength(splineAT, splineBT)
+	end
+
 	local lengthA = splineA:SolveLength(splineAT, 1)
 	local lengthB = splineB:SolveLength(0, splineBT)
 
