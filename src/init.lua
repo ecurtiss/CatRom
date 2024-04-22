@@ -286,6 +286,10 @@ function CatRom:SolveUniformLength(a: number?, b: number?)
 	local splineA, splineAT, splineAIndex = self:GetSplineFromT(a)
 	local splineB, splineBT, splineBIndex = self:GetSplineFromT(b)
 
+	if splineAIndex == splineBIndex then
+		return splineA:SolveUniformLength(splineAT, splineBT)
+	end
+
 	local lengthA = splineA:SolveUniformLength(splineAT, 1)
 	local lengthB = splineB:SolveUniformLength(0, splineBT)
 
