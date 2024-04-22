@@ -8,7 +8,7 @@ local Spline = {}
 Spline.__index = Spline
 
 function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
-	-- Parameterize
+	-- Parametrize
 	-- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
 	local pos0 = trans0[1]
 	local pos1 = trans1[1]
@@ -191,9 +191,9 @@ function Spline:SolveLength(a: number?, b: number?)
 	end, a, b)
 end
 
--- Reparameterizes s in terms of arc length, i.e. returns the input t that
+-- Reparametrizes s in terms of arc length, i.e. returns the input t that
 -- yields the point s of the way along the spline
-function Spline:Reparameterize(s: number)
+function Spline:Reparametrize(s: number)
 	if s == 0 or s == 1 then
 		return s
 	elseif self.length == 0 then
@@ -208,15 +208,15 @@ function Spline:Reparameterize(s: number)
 		return arcLengthParamsLUT[intervalIndex] * (1 - t)
 			 + arcLengthParamsLUT[intervalIndex + 1] * t
 	else
-		return self:_ReparameterizeHybrid(s)
+		return self:_ReparametrizeHybrid(s)
 	end
 end
 
 
--- Performs the actual arc length parameterization
+-- Performs the actual arc length parametrization
 -- s = \int_{0}^{t} ||r'(t)||dt = F(t) - F(0) = F(t)
 -- where t is solved as the root-finding problem F(t) - s = 0.
-function Spline:_ReparameterizeHybrid(s: number)
+function Spline:_ReparametrizeHybrid(s: number)
 	if s == 0 or s == 1 then
 		return s
 	elseif self.length == 0 then
@@ -253,13 +253,13 @@ function Spline:_ReparameterizeHybrid(s: number)
 		end
 	end
 
-	warn("Failed to reparameterize; falling back to input")
+	warn("Failed to reparametrize; falling back to input")
 	return s
 end
 
 -- Precomputes a lookup table of numIntervals + 1 evenly spaced arc length
 -- parameters that are used to piecewise linearly interpolate the real
--- parameterization function
+-- parametrization function
 function Spline:_PrecomputeArcLengthParams(numIntervals: number)
 	if self.length == 0 then
 		return
@@ -269,7 +269,7 @@ function Spline:_PrecomputeArcLengthParams(numIntervals: number)
 	arcLengthParamsLUT[1] = 0
 	arcLengthParamsLUT[numIntervals + 1] = 1
 	for i = 2, numIntervals do
-		arcLengthParamsLUT[i] = self:_ReparameterizeHybrid((i - 1) / numIntervals)
+		arcLengthParamsLUT[i] = self:_ReparametrizeHybrid((i - 1) / numIntervals)
 	end
 
 	self.arcLengthParamsLUT = arcLengthParamsLUT
@@ -277,34 +277,34 @@ end
 
 ---- START GENERATED METHODS
 function Spline:SolveUniformPosition(t: number)
-	return self:SolvePosition(self:Reparameterize(t))
+	return self:SolvePosition(self:Reparametrize(t))
 end
 function Spline:SolveUniformVelocity(t: number)
-	return self:SolveVelocity(self:Reparameterize(t))
+	return self:SolveVelocity(self:Reparametrize(t))
 end
 function Spline:SolveUniformAcceleration(t: number)
-	return self:SolveAcceleration(self:Reparameterize(t))
+	return self:SolveAcceleration(self:Reparametrize(t))
 end
 function Spline:SolveUniformTangent(t: number)
-	return self:SolveTangent(self:Reparameterize(t))
+	return self:SolveTangent(self:Reparametrize(t))
 end
 function Spline:SolveUniformNormal(t: number)
-	return self:SolveNormal(self:Reparameterize(t))
+	return self:SolveNormal(self:Reparametrize(t))
 end
 function Spline:SolveUniformBinormal(t: number)
-	return self:SolveBinormal(self:Reparameterize(t))
+	return self:SolveBinormal(self:Reparametrize(t))
 end
 function Spline:SolveUniformCurvature(t: number)
-	return self:SolveCurvature(self:Reparameterize(t))
+	return self:SolveCurvature(self:Reparametrize(t))
 end
 function Spline:SolveUniformCFrame(t: number)
-	return self:SolveCFrame(self:Reparameterize(t))
+	return self:SolveCFrame(self:Reparametrize(t))
 end
 function Spline:SolveUniformRotCFrame(t: number)
-	return self:SolveRotCFrame(self:Reparameterize(t))
+	return self:SolveRotCFrame(self:Reparametrize(t))
 end
 function Spline:SolveUniformLength(a: number?, b: number?)
-	return self:SolveLength(self:Reparameterize(a), self:Reparameterize(b))
+	return self:SolveLength(self:Reparametrize(a), self:Reparametrize(b))
 end
 ---- END GENERATED METHODS
 
