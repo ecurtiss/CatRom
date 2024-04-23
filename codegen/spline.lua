@@ -1,7 +1,7 @@
 ---@diagnostic disable: undefined-global
 --# selene: allow(undefined_variable)
 --[[
-	Generates wrapper methods for the arc length parameterization of a CatRom.
+	Generates wrapper methods for the arc length parametrization of a CatRom.
 	If the following two lines are not present in the script,
 
 	---- START GENERATED METHODS
@@ -30,7 +30,7 @@ for line in io.lines(SPLINE_FILE) do
 		if start then
 			local methodName = string.match(line, "(%a+)%(", 22)
 			local method = {
-				"function Spline:SolveUniform" .. methodName .. string.sub(line, stop)
+				"function Spline:SolveUnitSpeed" .. methodName .. string.sub(line, stop)
 			}
 
 			-- Get everything in the method's parentheses
@@ -39,10 +39,10 @@ for line in io.lines(SPLINE_FILE) do
 			-- Call the method
 			local methodCall = string.format("\treturn self:Solve%s(", methodName)
 
-			-- Reparameterize the arguments
+			-- Reparametrize the arguments
 			local i = 1
 			for arg in string.gmatch(inputs, "(%a+)(%:)") do
-				methodCall = methodCall .. (i > 1 and ", " or "") .. string.format("self:Reparameterize(%s)", arg)
+				methodCall = methodCall .. (i > 1 and ", " or "") .. string.format("self:Reparametrize(%s)", arg)
 				i = i + 1
 			end
 

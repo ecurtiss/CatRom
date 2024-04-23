@@ -276,34 +276,34 @@ function Spline:_PrecomputeArcLengthParams(numIntervals: number)
 end
 
 ---- START GENERATED METHODS
-function Spline:SolveUniformPosition(t: number)
+function Spline:SolveUnitSpeedPosition(t: number)
 	return self:SolvePosition(self:Reparametrize(t))
 end
-function Spline:SolveUniformVelocity(t: number)
+function Spline:SolveUnitSpeedVelocity(t: number)
 	return self:SolveVelocity(self:Reparametrize(t))
 end
-function Spline:SolveUniformAcceleration(t: number)
+function Spline:SolveUnitSpeedAcceleration(t: number)
 	return self:SolveAcceleration(self:Reparametrize(t))
 end
-function Spline:SolveUniformTangent(t: number)
+function Spline:SolveUnitSpeedTangent(t: number)
 	return self:SolveTangent(self:Reparametrize(t))
 end
-function Spline:SolveUniformNormal(t: number)
+function Spline:SolveUnitSpeedNormal(t: number)
 	return self:SolveNormal(self:Reparametrize(t))
 end
-function Spline:SolveUniformBinormal(t: number)
+function Spline:SolveUnitSpeedBinormal(t: number)
 	return self:SolveBinormal(self:Reparametrize(t))
 end
-function Spline:SolveUniformCurvature(t: number)
+function Spline:SolveUnitSpeedCurvature(t: number)
 	return self:SolveCurvature(self:Reparametrize(t))
 end
-function Spline:SolveUniformCFrame(t: number)
+function Spline:SolveUnitSpeedCFrame(t: number)
 	return self:SolveCFrame(self:Reparametrize(t))
 end
-function Spline:SolveUniformRotCFrame(t: number)
+function Spline:SolveUnitSpeedRotCFrame(t: number)
 	return self:SolveRotCFrame(self:Reparametrize(t))
 end
-function Spline:SolveUniformLength(a: number?, b: number?)
+function Spline:SolveUnitSpeedLength(a: number?, b: number?)
 	return self:SolveLength(self:Reparametrize(a), self:Reparametrize(b))
 end
 ---- END GENERATED METHODS

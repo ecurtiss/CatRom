@@ -1,6 +1,6 @@
 <div align="center">
-	<img src="https://github.com/EthanCurtiss/CatRom/blob/master/docs/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
-	<img src="https://github.com/EthanCurtiss/CatRom/blob/master/docs/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
+	<img src="https://github.com/ecurtiss/CatRom/blob/master/docs/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
+	<img src="https://github.com/ecurtiss/CatRom/blob/master/docs/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
 	<hr/>
 </div>
 
@@ -13,13 +13,13 @@ The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve, with t
 ## How to use
 The CatRom constructor takes 3 arguments:
 1. `points`: An array of Vector2s, Vector3s, or CFrames.
-2. `alpha` [optional]: A number (usually) in [0, 1] that determines the "parameterization" of the spline; defaults to 0.5.
+2. `alpha` [optional]: A number (usually) in [0, 1] that determines the "parametrization" of the spline; defaults to 0.5.
 3. `tension` [optional]: A number (usually) in [0, 1] that determines how loose the spline is; defaults to 0.
 
 The default `alpha` of 0.5 is the only way to avoid cusps and loops, as shown [in this paper](http://www.cemyuksel.com/research/catmullrom_param/).
 
 ## API
-***Note:*** *For each `Solve` method, there exists a `SolveUniform` counterpart that spaces the input(s) uniformly along the curve. Be aware that the uniform methods are slower to compute.*
+***Note:*** *For each `Solve` method, there exists a `SolveUnitSpeed` counterpart that does the same thing but on a unit-speed parametrization of the spline, i.e., a parametrization of the spline where the velocity is always 1. Another way to say this is that if you call `SolveUnitSpeedPosition` at 100 equally spaced times, you will get back 100 equally spaced points (measured by arc length). Be aware that the `UnitSpeed` methods are slower to compute.*
 ```lua
 CatRom.new(points: array, alpha: number?, tension: number?)
 ```
@@ -58,8 +58,8 @@ CatRom:PrecomputeArcLengthParams(numIntervals: number?)
 ```
 
 ## Performance Tips
-### 1. `Uniform` methods
-If you are calling many `Uniform` methods, you should call `PrecomputeArcLengthParams()` immediately after construction. This will make your `Uniform` calls less accurate but cheaper to compute. The accuracy can be further tuned using the `numIntervals` argument; lower is faster and less accurate, higher is slower and more accurate (defaults to 16).
+### 1. `UnitSpeed` methods
+If you are calling many `UnitSpeed` methods, you should call `PrecomputeArcLengthParams()` immediately after construction. This will make your `UnitSpeed` calls less accurate but cheaper to compute. The accuracy can be further tuned using the `numIntervals` argument; lower is faster and less accurate, higher is slower and more accurate (defaults to 16).
 
 ### 2. Repeated inputs
 If you are calling many methods on the *same* input like so:
