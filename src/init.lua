@@ -23,7 +23,7 @@ local function ToTransform(point, pointType)
 		return {point.Position, CFrameToQuaternion(point)}
 	end
 
-	return nil
+	error("Bad inputs")
 end
 
 function CatRom.new(points: {Point}, alpha: number?, tension: number?)
@@ -38,7 +38,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	local pointType = typeof(points[1])
 	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
 		"Points must be a table of Vector2s, Vector3s, or CFrames")
-	for _, point in ipairs(points) do
+	for _, point in points do
 		assert(typeof(point) == pointType, "All points must have the same type")
 	end
 
@@ -143,7 +143,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	-- Get the start of the domain interval for each spline
 	local domains = table.create(numSplines - 1)
 	local runningLength = 0
-	for i, spline in ipairs(splines) do
+	for i, spline in splines do
 		domains[i] = runningLength / totalLength
 		runningLength += spline.length
 	end
@@ -206,14 +206,13 @@ function CatRom:GetSplineFromTime(t: number)
 		end
 	end
 
-	-- This should theoretically never be possible, but if it occurs, then we
-	-- should not fail silently
+	-- This should never happen
 	error("Failed to get spline from t")
 end
 
 function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
 	numIntervals = numIntervals and math.max(1, math.round(numIntervals)) or DEFAULT_PRECOMPUTE_INTERVALS
-	for _, spline in ipairs(self.splines) do
+	for _, spline in self.splines do
 		spline:_PrecomputeArcLengthParams(numIntervals)
 	end
 end

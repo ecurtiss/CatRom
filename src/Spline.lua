@@ -2,7 +2,7 @@ local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 
 local MAX_NEWTON_ITERATIONS = 16
-local EPSILON = 1e-4
+local EPSILON = 2e-7
 
 local Spline = {}
 Spline.__index = Spline
