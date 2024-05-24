@@ -3,34 +3,11 @@ local Spline = require(script.Spline)
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
 local DEFAULT_PRECOMPUTE_INTERVALS = 16
-local EPSILON = 1e-4
 
 type Point = CFrame | Vector2 | Vector3
 
 local CatRom = {}
 CatRom.__index = CatRom
-
-local function FuzzyEq(a, b)
-	local aType = typeof(a)
-
-	if aType == "number" then
-		return a == b or math.abs(a - b) <= (math.abs(a) + 1) * EPSILON
-	elseif aType == "Vector3" then
-		return a:FuzzyEq(b, EPSILON)
-	elseif aType == "Vector2" then
-		local aX, bX = a.X, b.X
-		local aY, bY = a.Y, b.Y
-		return  aX == bX or math.abs(aX - bX) <= (math.abs(aX) + 1) * EPSILON
-			and aY == bY or math.abs(aY - bY) <= (math.abs(aY) + 1) * EPSILON
-	elseif aType == "CFrame" then
-		return a.Position:FuzzyEq(b.Position, EPSILON)
-			and a.RightVector:FuzzyEq(b.RightVector, EPSILON)
-			and a.UpVector:FuzzyEq(b.UpVector, EPSILON)
-			and a.LookVector:FuzzyEq(b.LookVector, EPSILON)
-	end
-
-	return false
-end
 
 local function CFrameToQuaternion(cframe)
 	local axis, angle = cframe:ToAxisAngle()
@@ -72,7 +49,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 		local i = 2
 		for j = 2, #points do
 			local point = points[j]
-			if not FuzzyEq(point, prevPoint) then
+			if point:FuzzyEq(prevPoint) then
 				uniquePoints[i] = point
 				i += 1
 				prevPoint = point
@@ -99,7 +76,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	local firstPoint = points[1]
 	local lastPoint = points[numPoints]
 	local zerothPoint, veryLastPoint do
-		if FuzzyEq(firstPoint, lastPoint) then
+		if firstPoint:FuzzyEq(lastPoint) then
 			-- Loops
 			zerothPoint = points[numPoints - 1]
 			veryLastPoint = points[2]
