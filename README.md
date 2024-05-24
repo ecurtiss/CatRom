@@ -86,7 +86,7 @@ then it is faster to instead do
 ```lua
 local t -- number in [0, 1]
 local catRom -- a CatRom object
-local spline, splineT = catRom:GetSplineFromT(t)
+local spline, splineT = catRom:GetSplineFromTime(t)
 spline:SolvePosition(splineT)
 spline:SolveVelocity(splineT)
 spline:SolveTangent(splineT)
