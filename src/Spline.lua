@@ -96,7 +96,6 @@ function Spline.fromLine(trans0, trans1, trans2, trans3)
 	}, Spline)
 end
 
--- Methods
 function Spline:SolvePosition(t: number)
 	-- r(t) using Horner's method
 	return self.d + t * (self.c + t * (self.b + t * self.a))
@@ -120,11 +119,11 @@ end
 function Spline:SolveNormal(t: number)
 	-- N(t) = T'(t) / ||T'(t)||
 	-- The return is equivalent to N(t) when the derivatives are carried out.
-	-- In particular, the vector being unitized is T'(t) * ||r'(t)|| ^ 3, but
-	-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we unitize it
-	-- anyway. This scaled version is faster to compute.
-	local rp = self:SolveVelocity(t) -- p for prime (1st deriv.)
-	local rpp = self:SolveAcceleration(t) -- pp for prime prime (2nd deriv.)
+	-- In particular, the vector being normalized is T'(t) * ||r'(t)|| ^ 3, but
+	-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we normalize
+	-- it anyway. This scaled version is faster to compute.
+	local rp = self:SolveVelocity(t) -- p for prime (1st derivative)
+	local rpp = self:SolveAcceleration(t) -- pp for prime prime (2nd derivative)
 	return (rpp * rp.Magnitude ^ 2 - rp * rpp:Dot(rp)).Unit
 end
 
@@ -191,7 +190,7 @@ function Spline:SolveLength(a: number?, b: number?)
 	end, a, b)
 end
 
--- Reparametrizes s in terms of arc length, i.e. returns the input t that
+-- Reparametrizes s in terms of arc length, i.e., returns the input t that
 -- yields the point s of the way along the spline
 function Spline:Reparametrize(s: number)
 	if s == 0 or s == 1 then
@@ -211,7 +210,6 @@ function Spline:Reparametrize(s: number)
 		return self:_ReparametrizeHybrid(s)
 	end
 end
-
 
 -- Performs the actual arc length parametrization
 -- s = \int_{0}^{t} ||r'(t)||dt = F(t) - F(0) = F(t)

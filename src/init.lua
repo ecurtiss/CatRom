@@ -9,6 +9,8 @@ type Point = CFrame | Vector2 | Vector3
 local CatRom = {}
 CatRom.__index = CatRom
 
+-- Converts cframe.Rotation into a quaternion in {w, x, y, z} format, where
+-- w is the angle and (x, y, z) is the axis.
 local function CFrameToQuaternion(cframe)
 	local axis, angle = cframe:ToAxisAngle()
 	angle /= 2
@@ -16,6 +18,8 @@ local function CFrameToQuaternion(cframe)
 	return {math.cos(angle), axis.X, axis.Y, axis.Z}
 end
 
+-- Extracts the position and rotation of a point. Only points of type CFrame
+-- have a rotational component.
 local function ToTransform(point, pointType)
 	if pointType == "Vector2" or pointType == "Vector3" then
 		return {point}
@@ -27,7 +31,7 @@ local function ToTransform(point, pointType)
 end
 
 function CatRom.new(points: {Point}, alpha: number?, tension: number?)
-	alpha = alpha or DEFAULT_ALPHA -- Parameterization exponent
+	alpha = alpha or DEFAULT_ALPHA -- Parametrization exponent
 	tension = tension or DEFAULT_TENSION
 
 	-- Type check
@@ -188,7 +192,7 @@ function CatRom:GetSplineAtTime(t: number)
 		return splines[1], t
 	end
 
-	-- Special cases for when t is on the border or outside of [0, 1]
+	-- Special cases for when t is on the boundary or outside of [0, 1]
 	if t < 0 then
 		return splines[1], t / domains[1], 1
 	elseif t == 0 then
@@ -223,25 +227,17 @@ function CatRom:GetSplineAtTime(t: number)
 	end
 
 	-- This should never happen
-	error("Failed to get spline from t")
+	error("Failed to get spline")
 end
 
 function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
-	numIntervals = numIntervals and math.max(1, math.round(numIntervals)) or DEFAULT_PRECOMPUTE_INTERVALS
+	numIntervals = if numIntervals then math.max(1, math.round(numIntervals)) else DEFAULT_PRECOMPUTE_INTERVALS
 	for _, spline in self.splines do
 		spline:_PrecomputeArcLengthParams(numIntervals)
 	end
 end
 
 function CatRom:SolveLength(a: number?, b: number?)
-	-- Algorithm outline:
-	-- Binary search for the two splines that contain the a and b positions
-	-- Find where a is in the first spline
-	-- Find where b is in the second spline
-	-- Get the length from a to the end of the first spline
-	-- Get the length from the start of the second spline to b
-	-- Sum the full lengths of the splines between the a spline and b spline
-
 	a = a or 0
 	b = b or 1
 
@@ -249,15 +245,15 @@ function CatRom:SolveLength(a: number?, b: number?)
 		return self.length
 	end
 
-	local splineA, splineAT, splineAIndex = self:GetSplineFromTime(a)
-	local splineB, splineBT, splineBIndex = self:GetSplineFromTime(b)
+	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
+	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
 
 	if splineAIndex == splineBIndex then
-		return splineA:SolveLength(splineAT, splineBT)
+		return splineA:SolveLength(splineATime, splineBTime)
 	end
 
-	local lengthA = splineA:SolveLength(splineAT, 1)
-	local lengthB = splineB:SolveLength(0, splineBT)
+	local lengthA = splineA:SolveLength(splineATime, 1)
+	local lengthB = splineB:SolveLength(0, splineBTime)
 
 	local intermediateLengths = 0
 	for i = splineAIndex + 1, splineBIndex - 1 do
