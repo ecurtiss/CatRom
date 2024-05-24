@@ -303,9 +303,6 @@ end
 function Spline:SolveUnitSpeedRotCFrame(t: number)
 	return self:SolveRotCFrame(self:Reparametrize(t))
 end
-function Spline:SolveUnitSpeedLength(a: number?, b: number?)
-	return self:SolveLength(self:Reparametrize(a), self:Reparametrize(b))
-end
 ---- END GENERATED METHODS
 
 return Spline

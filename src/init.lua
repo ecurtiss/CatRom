@@ -275,32 +275,6 @@ function CatRom:SolveLength(a: number?, b: number?)
 	return lengthA + intermediateLengths + lengthB
 end
 
-function CatRom:SolveUnitSpeedLength(a: number?, b: number?)
-	a = a or 0
-	b = b or 1
-
-	if a == 0 and b == 1 then
-		return self.length
-	end
-
-	local splineA, splineAT, splineAIndex = self:GetSplineFromT(a)
-	local splineB, splineBT, splineBIndex = self:GetSplineFromT(b)
-
-	if splineAIndex == splineBIndex then
-		return splineA:SolveLength(splineAT, splineBT)
-	end
-
-	local lengthA = splineA:SolveUnitSpeedLength(splineAT, 1)
-	local lengthB = splineB:SolveUnitSpeedLength(0, splineBT)
-
-	local intermediateLengths = 0
-	for i = splineAIndex + 1, splineBIndex - 1 do
-		intermediateLengths += self.splines[i].length
-	end
-
-	return lengthA + intermediateLengths + lengthB
-end
-
 ---- START GENERATED METHODS
 function CatRom:SolvePosition(t: number)
 	local spline, splineT = self:GetSplineFromT(t)
