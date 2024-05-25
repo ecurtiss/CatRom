@@ -308,32 +308,4 @@ function CatRom:SolveRotCFrame(t: number, unitSpeed: boolean?)
 	return spline:SolveRotCFrame(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
--- Utility function for calling a method on n uniformly-spaced points in [a, b].
--- TODO: Bulk GetSplineAtTime
--- TODO: Bulk ReparametrizeHybrid
-function CatRom:SolveBulk(f: (table, number) -> any, n: number, a: number?, b: number?)
-	n = math.round(n)
-	a = a or 0
-	b = b or 1
-
-	if a == b then
-		return table.create(f(self, a), n)
-	elseif n < 1 then
-		return
-	elseif n == 1 then
-		return {f(self, a)}
-	end
-
-	local outputs = table.create(n)
-	outputs[1] = f(self, a)
-	outputs[n] = f(self, b)
-
-	local increment = (b - a) / (n - 1)
-	for i = 1, n - 2 do
-		outputs[i + 1] = f(self, a + increment * i)
-	end
-
-	return outputs
-end
-
 return CatRom
