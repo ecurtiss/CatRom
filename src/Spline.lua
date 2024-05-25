@@ -158,7 +158,7 @@ function Spline:SolveCFrame(t: number)
 		end
 	end
 
-	return CFrame.lookAt(position, position + tangent)
+	return CFrame.lookAlong(position, tangent)
 end
 
 function Spline:SolveRotCFrame(t: number)
