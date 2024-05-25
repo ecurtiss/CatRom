@@ -1,0 +1,12 @@
+{
+	"name": "test",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"CatRom": {
+                "$path": "src"
+            }
+		}
+	}
+}
