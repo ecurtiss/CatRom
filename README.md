@@ -19,7 +19,9 @@ The CatRom constructor takes 3 arguments:
 The default `alpha` of 0.5 is the only way to avoid cusps and loops, as shown [in this paper](http://www.cemyuksel.com/research/catmullrom_param/).
 
 ## API
-***Note:*** *The `unitSpeed` argument in each `Solve` method determines whether the calculation uses a unit-speed parametrization of the spline, i.e., a parametrization with a constant speed of 1. Another way to say this is that if you call `SolvePosition` at 100 equally spaced times with `unitSpeed` true, you will get back 100 equally spaced points along the curve (measured by arc length). Be aware that using `unitSpeed` adds computation time.*
+___
+The `unitSpeed` argument in each `Solve` method determines whether the calculation uses a unit-speed parametrization of the spline. A unit-speed parametrization (also called an arc length parametrization) has a constant speed of 1, which yields equally spaced points given equally spaced times. This is often visually desirable but increases computation time.
+___
 ```lua
 CatRom.new(points: array, alpha: number?, tension: number?)
 ```
