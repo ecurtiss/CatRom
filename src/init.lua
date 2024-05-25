@@ -263,94 +263,49 @@ function CatRom:SolveLength(a: number?, b: number?)
 	return lengthA + intermediateLengths + lengthB
 end
 
-function CatRom:SolvePosition(t: number)
+function CatRom:SolvePosition(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolvePosition(splineTime)
+	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveVelocity(t: number)
+function CatRom:SolveVelocity(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveVelocity(splineTime)
+	return spline:SolveVelocity(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveAcceleration(t: number)
+function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveAcceleration(splineTime)
+	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveTangent(t: number)
+function CatRom:SolveTangent(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTangent(splineTime)
+	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveNormal(t: number)
+function CatRom:SolveNormal(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveNormal(splineTime)
+	return spline:SolveNormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveBinormal(t: number)
+function CatRom:SolveBinormal(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveBinormal(splineTime)
+	return spline:SolveBinormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveCurvature(t: number)
+function CatRom:SolveCurvature(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCurvature(splineTime)
+	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveCFrame(t: number)
+function CatRom:SolveCFrame(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame(splineTime)
+	return spline:SolveCFrame(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveRotCFrame(t: number)
+function CatRom:SolveRotCFrame(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveRotCFrame(splineTime)
-end
-
-function CatRom:SolveUnitSpeedPosition(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedPosition(splineTime)
-end
-
-function CatRom:SolveUnitSpeedVelocity(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedVelocity(splineTime)
-end
-
-function CatRom:SolveUnitSpeedAcceleration(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedAcceleration(splineTime)
-end
-
-function CatRom:SolveUnitSpeedTangent(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedTangent(splineTime)
-end
-
-function CatRom:SolveUnitSpeedNormal(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedNormal(splineTime)
-end
-
-function CatRom:SolveUnitSpeedBinormal(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedBinormal(splineTime)
-end
-
-function CatRom:SolveUnitSpeedCurvature(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedCurvature(splineTime)
-end
-
-function CatRom:SolveUnitSpeedCFrame(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedCFrame(splineTime)
-end
-
-function CatRom:SolveUnitSpeedRotCFrame(s: number)
-	local spline, splineTime = self:GetSplineAtTime(s)
-	return spline:SolveUnitSpeedRotCFrame(splineTime)
+	return spline:SolveRotCFrame(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 return CatRom

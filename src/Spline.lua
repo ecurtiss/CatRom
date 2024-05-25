@@ -273,40 +273,4 @@ function Spline:_PrecomputeArcLengthParams(numIntervals: number)
 	self.arcLengthParamsLUT = arcLengthParamsLUT
 end
 
-function Spline:SolveUnitSpeedPosition(s: number)
-	return self:SolvePosition(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedVelocity(s: number)
-	return self:SolveVelocity(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedAcceleration(s: number)
-	return self:SolveAcceleration(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedTangent(s: number)
-	return self:SolveTangent(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedNormal(s: number)
-	return self:SolveNormal(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedBinormal(s: number)
-	return self:SolveBinormal(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedCurvature(s: number)
-	return self:SolveCurvature(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedCFrame(s: number)
-	return self:SolveCFrame(self:Reparametrize(s))
-end
-
-function Spline:SolveUnitSpeedRotCFrame(s: number)
-	return self:SolveRotCFrame(self:Reparametrize(s))
-end
-
 return Spline
