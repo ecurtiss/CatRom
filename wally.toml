@@ -3,4 +3,4 @@ name = "ethancurtiss/catrom"
 version = "0.5.0"
 realm = "shared"
 registry = "https://github.com/upliftgames/wally-index"
-exclude = ["codegen", "docs", "literature", "Tube.rbxl"]
+exclude = ["docs", "literature", "test-bench.rbxl"]
