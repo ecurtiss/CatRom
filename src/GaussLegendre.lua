@@ -9,11 +9,8 @@ function GaussLegendre.Five(f, a, b)
 		return 0
 	end
 
-	local min = math.min(a, b)
-	local max = math.max(a, b)
-
-	local halfInterval = (max - min) / 2
-	local midpoint = (max + min) / 2
+	local halfInterval = (b - a) / 2
+	local midpoint = (b + a) / 2
 
 	local x2 = halfInterval * 0.5384693101056831
 	local x3 = halfInterval * 0.906179845938664
@@ -30,11 +27,8 @@ function GaussLegendre.Ten(f, a, b)
 		return 0
 	end
 
-	local min = math.min(a, b)
-	local max = math.max(a, b)
-
-	local halfInterval = (max - min) / 2
-	local midpoint = (max + min) / 2
+	local halfInterval = (b - a) / 2
+	local midpoint = (b + a) / 2
 
 	local x1 = halfInterval * 0.14887433898163122
 	local x2 = halfInterval * 0.4333953941292472
@@ -56,11 +50,8 @@ function GaussLegendre.Twenty(f, a, b)
 		return 0
 	end
 
-	local min = math.min(a, b)
-	local max = math.max(a, b)
-
-	local halfInterval = (max - min) / 2
-	local midpoint = (max + min) / 2
+	local halfInterval = (b - a) / 2
+	local midpoint = (b + a) / 2
 
 	local x1 = halfInterval * 0.07652652113349734
 	local x2 = halfInterval * 0.22778585114164507
