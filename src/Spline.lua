@@ -273,40 +273,40 @@ function Spline:_PrecomputeArcLengthParams(numIntervals: number)
 	self.arcLengthParamsLUT = arcLengthParamsLUT
 end
 
-function Spline:SolveUnitSpeedPosition(t: number)
-	return self:SolvePosition(self:Reparametrize(t))
+function Spline:SolveUnitSpeedPosition(s: number)
+	return self:SolvePosition(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedVelocity(t: number)
-	return self:SolveVelocity(self:Reparametrize(t))
+function Spline:SolveUnitSpeedVelocity(s: number)
+	return self:SolveVelocity(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedAcceleration(t: number)
-	return self:SolveAcceleration(self:Reparametrize(t))
+function Spline:SolveUnitSpeedAcceleration(s: number)
+	return self:SolveAcceleration(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedTangent(t: number)
-	return self:SolveTangent(self:Reparametrize(t))
+function Spline:SolveUnitSpeedTangent(s: number)
+	return self:SolveTangent(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedNormal(t: number)
-	return self:SolveNormal(self:Reparametrize(t))
+function Spline:SolveUnitSpeedNormal(s: number)
+	return self:SolveNormal(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedBinormal(t: number)
-	return self:SolveBinormal(self:Reparametrize(t))
+function Spline:SolveUnitSpeedBinormal(s: number)
+	return self:SolveBinormal(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedCurvature(t: number)
-	return self:SolveCurvature(self:Reparametrize(t))
+function Spline:SolveUnitSpeedCurvature(s: number)
+	return self:SolveCurvature(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedCFrame(t: number)
-	return self:SolveCFrame(self:Reparametrize(t))
+function Spline:SolveUnitSpeedCFrame(s: number)
+	return self:SolveCFrame(self:Reparametrize(s))
 end
 
-function Spline:SolveUnitSpeedRotCFrame(t: number)
-	return self:SolveRotCFrame(self:Reparametrize(t))
+function Spline:SolveUnitSpeedRotCFrame(s: number)
+	return self:SolveRotCFrame(self:Reparametrize(s))
 end
 
 return Spline
