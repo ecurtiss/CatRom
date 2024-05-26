@@ -35,21 +35,21 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 	c = m1
 	
 	local self = setmetatable({
-		-- Rotations (nil if VectorCatRom)
+		arcLengthParamsLUT = nil,
+		length = nil,
+		type = if trans0[2] then "CFrame" else typeof(pos0),
+
+		-- Rotations (nil if type is Vector2 or Vector3)
 		rot0 = trans0[2],
 		rot1 = trans1[2],
 		rot2 = trans2[2],
 		rot3 = trans3[2],
-		
-		length = nil,
 
 		-- Coefficient vectors for position/velocity/acceleration polynomials
 		a = a,
 		b = b,
 		c = c,
 		d = pos1,
-
-		arcLengthParamsLUT = nil
 	}, Spline)
 	self.length = self:SolveLength()
 	
@@ -61,16 +61,16 @@ function Spline.fromPoint(trans)
 	local zero = pos * 0
 
 	return setmetatable({
-		rot0 = trans[2],
-
+		arcLengthParamsLUT = nil,
 		length = 0,
+		type = if trans[2] then "CFrame" else typeof(pos),
+
+		rot0 = trans[2],
 
 		a = zero,
 		b = zero,
 		c = zero,
 		d = trans[1],
-
-		arcLengthParamsLUT = nil
 	}, Spline)
 end
 
@@ -80,19 +80,19 @@ function Spline.fromLine(trans0, trans1, trans2, trans3)
 	local pos2_pos1 = trans2[1] - pos1
 
 	return setmetatable({
+		arcLengthParamsLUT = nil,
+		length = pos2_pos1.Magnitude,
+		type = if trans0[2] then "CFrame" else typeof(pos1),
+		
 		rot0 = trans0[2],
 		rot1 = trans1[2],
 		rot2 = trans2[2],
 		rot3 = trans3[2],
 
-		length = pos2_pos1.Magnitude,
-
 		a = zero,
 		b = zero,
 		c = pos2_pos1,
 		d = pos1,
-
-		arcLengthParamsLUT = nil
 	}, Spline)
 end
 
