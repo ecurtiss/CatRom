@@ -213,6 +213,35 @@ function Spline:SolveRotCFrame(t: number)
 	end
 end
 
+-- Parallel transports the vector v in the normal plane at a to a vector in
+-- the normal plane at b. It does this by obtaining a rotation-minimizing
+-- frame as a rotation of the Frenet frame, provided a Frenet frame exists.
+-- Source: Guggeinheimer, "Computing frames along a trajectory" (1989)
+function Spline:ParallelTransport_Frenet(v: Vector3, a: number, b: number, unitSpeed: boolean?)
+	assert(self.type ~= "Vector2", "ParallelTransportFast is undefined for Vector2 splines")
+
+	local bCurvature, bNormal = self:SolveCurvature(b, unitSpeed)
+
+	-- Case: Curve is a straight line at b; no Frenet frame
+	if bCurvature < EPSILON then
+		return nil
+	end
+
+	local aTangent = self:SolveTangent(a)
+	local aNormal = self:SolveNormal(a, unitSpeed)
+
+	local bTangent = self:SolveTangent(b)
+	local bBinormal = bTangent:Cross(bNormal)
+
+	local aAngleFromNormal = aNormal:Angle(v, aTangent)
+	local angleOffset = GaussLegendre.Twenty(function(t: number)
+		return self:SolveTorsion(t) * self:SolveVelocity(t).Magnitude
+	end, a, b)
+	local bAngleFromNormal = aAngleFromNormal - angleOffset
+
+	return (math.cos(bAngleFromNormal) * bNormal + math.sin(bAngleFromNormal) * bBinormal).Unit, angleOffset
+end
+
 function Spline:SolveLength(a: number?, b: number?)
 	a = a or 0
 	b = b or 1
