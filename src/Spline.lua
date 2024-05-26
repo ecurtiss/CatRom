@@ -111,6 +111,11 @@ function Spline:SolveAcceleration(t: number)
 	return 6 * self.a * t + 2 * self.b
 end
 
+function Spline:SolveJerk()
+	-- r'''(t)
+	return 6 * self.a
+end
+
 function Spline:SolveTangent(t: number)
 	-- T(t) = r'(t) / ||r'(t)||
 	return self:SolveVelocity(t).Unit

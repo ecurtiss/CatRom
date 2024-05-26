@@ -278,6 +278,11 @@ function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?)
 	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
+function CatRom:SolveJerk(t: number, unitSpeed: boolean?)
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveJerk(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
 function CatRom:SolveTangent(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
 	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
