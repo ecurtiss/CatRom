@@ -121,15 +121,22 @@ function Spline:SolveTangent(t: number)
 	return self:SolveVelocity(t).Unit
 end
 
-function Spline:SolveNormal(t: number)
-	-- N(t) = T'(t) / ||T'(t)||
-	-- The return is equivalent to N(t) when the derivatives are carried out.
-	-- In particular, the vector being normalized is T'(t) * ||r'(t)|| ^ 3, but
-	-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we normalize
-	-- it anyway. This scaled version is faster to compute.
-	local rp = self:SolveVelocity(t) -- p for prime (1st derivative)
-	local rpp = self:SolveAcceleration(t) -- pp for prime prime (2nd derivative)
-	return (rpp * rp.Magnitude ^ 2 - rp * rpp:Dot(rp)).Unit
+function Spline:SolveNormal(t: number, unitSpeed: boolean?)
+	if self.type == "Vector2" then
+		local tangent = self:SolveTangent(t)
+		return Vector2.new(-tangent.Y, tangent.X)
+	elseif unitSpeed then
+		return self:SolveAcceleration(t).Unit
+	else
+		-- N(t) = T'(t) / ||T'(t)||
+		-- The return is equivalent to N(t) when the derivatives are carried out.
+		-- In particular, the vector being normalized is T'(t) * ||r'(t)|| ^ 3, but
+		-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we normalize
+		-- it anyway. This scaled version is faster to compute.
+		local vel = self:SolveVelocity(t) -- p for prime (1st derivative)
+		local acc = self:SolveAcceleration(t) -- pp for prime prime (2nd derivative)
+		return (acc * vel.Magnitude ^ 2 - vel * acc:Dot(vel)).Unit
+	end
 end
 
 function Spline:SolveBinormal(t: number)
