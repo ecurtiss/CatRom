@@ -146,17 +146,28 @@ function Spline:SolveBinormal(t: number, unitSpeed: boolean?)
 	return self:SolveTangent(t):Cross(self:SolveNormal(t, unitSpeed))
 end
 
-function Spline:SolveCurvature(t: number)
-	local rp = self:SolveVelocity(t)
-	local rpp = self:SolveAcceleration(t)
-	local rpMag = rp.Magnitude
-	local tangentp = rpp / rpMag - rp * rp:Dot(rpp) / rpMag ^ 3
-
-	-- Curvature = ||T'(t)|| / ||r'(t)||
-	-- N(t) is the direction of curvature
-	local curvature = tangentp.Magnitude / rpMag
-	local unitNormal = tangentp.Unit
-	return curvature, unitNormal
+function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
+	if self.type == "Vector2" then
+		local vel = self:SolveVelocity(t)
+		local acc = self:SolveAcceleration(t)
+		return vel:Cross(acc) / vel.Magnitude^3
+	elseif unitSpeed then
+		-- κ(s) = ||T'(s)||
+		local acc = self:SolveAcceleration(t)
+		return acc.Magnitude, acc.Unit
+	else
+		local rp = self:SolveVelocity(t)
+		local rpp = self:SolveAcceleration(t)
+		local rpMag = rp.Magnitude
+		local tangentp = rpp / rpMag - rp * rp:Dot(rpp) / rpMag ^ 3
+	
+		-- κ(t) = ||T'(t)|| / ||r'(t)||
+		-- N(t) is the direction of curvature
+		local curvature = tangentp.Magnitude / rpMag
+		local unitNormal = tangentp.Unit
+		return curvature, unitNormal
+	end
+end
 end
 
 function Spline:SolveCFrame(t: number)
