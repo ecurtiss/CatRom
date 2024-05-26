@@ -139,7 +139,9 @@ function Spline:SolveNormal(t: number, unitSpeed: boolean?)
 	end
 end
 
-function Spline:SolveBinormal(t: number)
+function Spline:SolveBinormal(t: number, unitSpeed: boolean?)
+	assert(self.type ~= "Vector2", "SolveBinormal is undefined on Vector2 splines")
+
 	-- T(t) x N(t)
 	return self:SolveTangent(t):Cross(self:SolveNormal(t))
 end
