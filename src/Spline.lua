@@ -168,6 +168,17 @@ function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
 		return curvature, unitNormal
 	end
 end
+
+function Spline:SolveTorsion(t: number)
+	assert(self.type ~= "Vector2", "SolveTorsion is undefined on Vector2 splines")
+
+	local vel = self:SolveVelocity(t)
+	local acc = self:SolveAcceleration(t)
+	local jerk = self:SolveJerk()
+	local cross = vel:Cross(acc)
+
+	-- τ = ((r' x r'') · r''') / ||r' x r''||^2
+	return cross:Dot(jerk) / cross.Magnitude^2
 end
 
 function Spline:SolveCFrame(t: number)
