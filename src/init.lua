@@ -315,7 +315,7 @@ end
 
 function CatRom:SolveCFrame_Squad(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveRotCFrame(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	return spline:SolveCFrame_Squad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 return CatRom
