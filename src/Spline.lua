@@ -117,7 +117,7 @@ function Spline:SolveJerk()
 end
 
 function Spline:SolveTangent(t: number)
-	-- T(t) = r'(t) / ||r'(t)||
+	-- T(t) = r'(t) / |r'(t)|
 	return self:SolveVelocity(t).Unit
 end
 
@@ -128,10 +128,10 @@ function Spline:SolveNormal(t: number, unitSpeed: boolean?)
 	elseif unitSpeed then
 		return self:SolveAcceleration(t).Unit
 	else
-		-- N(t) = T'(t) / ||T'(t)||
+		-- N(t) = T'(t) / |T'(t)|
 		-- The return is equivalent to N(t) when the derivatives are carried out.
-		-- In particular, the vector being normalized is T'(t) * ||r'(t)|| ^ 3, but
-		-- the ||r'(t)|| ^ 3 scaling doesn't affect the result because we normalize
+		-- In particular, the vector being normalized is T'(t) * |r'(t)| ^ 3, but
+		-- the |r'(t)| ^ 3 scaling doesn't affect the result because we normalize
 		-- it anyway. This scaled version is faster to compute.
 		local vel = self:SolveVelocity(t) -- p for prime (1st derivative)
 		local acc = self:SolveAcceleration(t) -- pp for prime prime (2nd derivative)
@@ -152,19 +152,19 @@ function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
 		local acc = self:SolveAcceleration(t)
 		return vel:Cross(acc) / vel.Magnitude^3
 	elseif unitSpeed then
-		-- κ(s) = ||T'(s)||
+		-- κ(s) = |T'(s)|
 		local acc = self:SolveAcceleration(t)
 		return acc.Magnitude, acc.Unit
 	else
-		local rp = self:SolveVelocity(t)
-		local rpp = self:SolveAcceleration(t)
-		local rpMag = rp.Magnitude
-		local tangentp = rpp / rpMag - rp * rp:Dot(rpp) / rpMag ^ 3
+		local vel = self:SolveVelocity(t)
+		local acc = self:SolveAcceleration(t)
+		local speed = vel.Magnitude
+		local dTangent = acc / speed - vel * vel:Dot(acc) / speed ^ 3
 	
-		-- κ(t) = ||T'(t)|| / ||r'(t)||
+		-- κ(t) = |T'(t)| / |r'(t)|
 		-- N(t) is the direction of curvature
-		local curvature = tangentp.Magnitude / rpMag
-		local unitNormal = tangentp.Unit
+		local curvature = dTangent.Magnitude / speed
+		local unitNormal = dTangent.Unit
 		return curvature, unitNormal
 	end
 end
@@ -177,25 +177,25 @@ function Spline:SolveTorsion(t: number)
 	local jerk = self:SolveJerk()
 	local cross = vel:Cross(acc)
 
-	-- τ = ((r' x r'') · r''') / ||r' x r''||^2
+	-- τ = ((r' x r'') • r''') / |r' x r''|^2
 	return cross:Dot(jerk) / cross.Magnitude^2
 end
 
 function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?)
-	local position = self:SolvePosition(t)
+	local pos = self:SolvePosition(t)
 	local tangent = self:SolveVelocity(t)
 
 	-- Case: Spline is a point
 	if tangent.Magnitude == 0 then
 		local rot = self.rot0
 		if rot then
-			return CFrame.new(position.X, position.Y, position.Z, rot[2], rot[3], rot[4], rot[1])
+			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
 		else
-			return CFrame.new(position)
+			return CFrame.new(pos)
 		end
 	end
 
-	return CFrame.lookAlong(position, tangent, upVector or Vector3.yAxis)
+	return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
 end
 
 -- TODO: Test different version of parameters to fromMatrix.
@@ -203,22 +203,22 @@ end
 function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
 	assert(self.type ~= "Vector2", "SolveFrame_Frenet is undefined on Vector2 splines")
 
-	local position = self:SolvePosition(t)
+	local pos = self:SolvePosition(t)
 	local tangent = self:SolveTangent(t)
 
 	-- Case: Spline is a point
 	if tangent.Magnitude == 0 then
 		local rot = self.rot0
 		if rot then
-			return CFrame.new(position.X, position.Y, position.Z, rot[2], rot[3], rot[4], rot[1])
+			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
 		else
-			return CFrame.new(position)
+			return CFrame.new(pos)
 		end
 	end
 
 	local normal = self:SolveNormal(t, unitSpeed)
 	local binormal = tangent:Cross(normal)
-	return CFrame.fromMatrix(position, -normal, binormal)
+	return CFrame.fromMatrix(pos, -normal, binormal)
 end
 
 function Spline:SolveCFrame_Squad(t: number)
@@ -304,7 +304,7 @@ function Spline:Reparametrize(s: number)
 end
 
 -- Performs the actual arc length parametrization
--- s = (1/L) * \int_{0}^{t} ||r'(u)||du = (1/L) * (F(t) - F(0)) = F(t)/L
+-- s = (1/L) * \int_{0}^{t} |r'(u)|du = (1/L) * (F(t) - F(0)) = F(t)/L
 -- where t is solved as the root-finding problem f(t) = F(t)/L - s = 0.
 function Spline:_ReparametrizeHybrid(s: number)
 	local length = self.length

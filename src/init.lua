@@ -34,7 +34,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	alpha = alpha or DEFAULT_ALPHA -- Parametrization exponent
 	tension = tension or DEFAULT_TENSION
 
-	-- Type check
+	-- Check types
 	assert(type(points) == "table", "Points must be a table")
 	assert(type(alpha) == "number", "Alpha must be a number")
 	assert(type(tension) == "number", "Tension must be a number")
@@ -66,13 +66,9 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	-- Early exit: 1 point
 	if numPoints == 1 then
 		return setmetatable({
-			alpha = alpha,
-			tension = tension,
-
-			splines = {Spline.fromPoint(ToTransform(points[1], pointType))},
 			domains = {0},
-
-			length = 0
+			length = 0,
+			splines = {Spline.fromPoint(ToTransform(points[1], pointType))},
 		}, CatRom)
 	end
 
@@ -101,13 +97,9 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 		)
 
 		return setmetatable({
-			alpha = alpha,
-			tension = tension,
-
-			splines = {spline},
 			domains = {0},
-
-			length = spline.length
+			length = spline.length,
+			splines = {spline},
 		}, CatRom)
 	end
 
@@ -156,13 +148,9 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	end
 
 	return setmetatable({
-		alpha = alpha,
-		tension = tension,
-
-		splines = splines,
 		domains = domains,
-
-		length = totalLength
+		length = totalLength,
+		splines = splines,
 	}, CatRom)
 end
 
