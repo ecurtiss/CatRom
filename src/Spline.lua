@@ -1,3 +1,17 @@
+--[[
+	Catmull-Rom spline class
+
+	Notation
+	t: Time parameter
+	s: Arc length parameter
+	r: Position
+	T: Tangent vector
+	N: Normal vector
+	B: Binormal vector
+	κ: Curvature
+	τ: Torsion
+]]
+
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 
@@ -181,13 +195,7 @@ function Spline:SolveTorsion(t: number)
 	return cross:Dot(jerk) / cross.Magnitude^2
 end
 
-function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?)
-	local pos = self:SolvePosition(t)
-	local tangent = self:SolveVelocity(t)
-
-	-- Case: Spline is a point
-	if tangent.Magnitude == 0 then
-		local rot = self.rot0
+local function solveCFrameForPointSpline(pos, rot)
 		if rot then
 			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
 		else
@@ -195,46 +203,46 @@ function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?)
 		end
 	end
 
+function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?)
+	local pos = self:SolvePosition(t)
+	local tangent = self:SolveVelocity(t)
+
+	if tangent.Magnitude == 0 then -- Spline is a point
+		return solveCFrameForPointSpline(pos, self.rot0)
+	else
 	return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
+end
 end
 
 -- TODO: Test different version of parameters to fromMatrix.
 -- TODO: Test CFrame.fromMatrix(pos, tangent, normal) * SomeRotation
 function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
-	assert(self.type ~= "Vector2", "SolveFrame_Frenet is undefined on Vector2 splines")
+	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveTangent(t)
 
-	-- Case: Spline is a point
-	if tangent.Magnitude == 0 then
-		local rot = self.rot0
-		if rot then
-			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
+	if tangent.Magnitude == 0 then -- Spline is a point
+		return solveCFrameForPointSpline(pos, self.rot0)
 		else
-			return CFrame.new(pos)
-		end
-	end
-
 	local normal = self:SolveNormal(t, unitSpeed)
 	local binormal = tangent:Cross(normal)
 	return CFrame.fromMatrix(pos, -normal, binormal)
+	end
 end
 
 function Spline:SolveCFrame_Squad(t: number)
-	assert(self.type == "CFrame", "SolveFrame_Squad is only defined on CFrame splines")
+	assert(self.type == "CFrame", "SolveCFrame_Squad is only defined on CFrame splines")
 
+	local pos = self:SolvePosition(t)
 	local rot0 = self.rot0
-	if rot0 then -- CFrame
-		local pos = self:SolvePosition(t)
 		local rot1 = self.rot1
 		
 		if rot1 then
 			local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, t)
 			return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
-		else -- 1 point
-			return CFrame.new(pos.X, pos.Y, pos.Z, rot0[2], rot0[3], rot0[4], rot0[1])
-		end
+	else -- Spline is a point
+		return solveCFrameForPointSpline(pos, rot0)
 	end
 end
 

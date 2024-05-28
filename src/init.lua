@@ -1,3 +1,6 @@
+-- A package for creating chains of Catmull-Rom splines
+-- By AstroCode (https://github.com/ecurtiss/catrom)
+
 local Spline = require(script.Spline)
 
 local DEFAULT_ALPHA = 0.5
@@ -11,7 +14,7 @@ CatRom.__index = CatRom
 
 -- Converts cframe.Rotation into a quaternion in {w, x, y, z} format, where
 -- w is the angle and (x, y, z) is the axis.
-local function CFrameToQuaternion(cframe)
+local function cframeToQuaternion(cframe)
 	local axis, angle = cframe:ToAxisAngle()
 	angle /= 2
 	axis = math.sin(angle) * axis
@@ -20,14 +23,32 @@ end
 
 -- Extracts the position and rotation of a point. Only points of type CFrame
 -- have a rotational component.
-local function ToTransform(point, pointType)
+local function toTransform(point, pointType)
 	if pointType == "Vector2" or pointType == "Vector3" then
 		return {point}
 	elseif pointType == "CFrame" then
-		return {point.Position, CFrameToQuaternion(point)}
+		return {point.Position, cframeToQuaternion(point)}
 	end
 
 	error("Bad inputs")
+end
+
+-- Removes adjacent points that are fuzzy-equal
+local function getUniquePoints(points: {Point}): {Point}
+	local prevPoint = points[1]
+	local uniquePoints = {prevPoint}
+	local i = 2
+
+	for j = 2, #points do
+		local point = points[j]
+		if not point:FuzzyEq(prevPoint) then
+			uniquePoints[i] = point
+			i += 1
+			prevPoint = point
+		end
+	end
+
+	return uniquePoints
 end
 
 function CatRom.new(points: {Point}, alpha: number?, tension: number?)
@@ -46,29 +67,15 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 		assert(typeof(point) == pointType, "All points must have the same type")
 	end
 
-	-- Remove equal adjacent points
-	local uniquePoints = {} do
-		local prevPoint = points[1]
-		uniquePoints[1] = prevPoint
-		local i = 2
-		for j = 2, #points do
-			local point = points[j]
-			if not point:FuzzyEq(prevPoint) then
-				uniquePoints[i] = point
-				i += 1
-				prevPoint = point
-			end
-		end
-	end
-	points = uniquePoints
+	points = getUniquePoints(points)
 	local numPoints = #points
 
 	-- Early exit: 1 point
 	if numPoints == 1 then
 		return setmetatable({
-			domains = {0},
+			domains = {0, 1},
 			length = 0,
-			splines = {Spline.fromPoint(ToTransform(points[1], pointType))},
+			splines = {Spline.fromPoint(toTransform(points[1], pointType))},
 		}, CatRom)
 	end
 
@@ -90,14 +97,14 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	-- Early exit: 2 points
 	if numPoints == 2 then
 		local spline = Spline.fromLine(
-			ToTransform(zerothPoint, pointType),
-			ToTransform(firstPoint, pointType),
-			ToTransform(lastPoint, pointType),
-			ToTransform(veryLastPoint, pointType)
+			toTransform(zerothPoint, pointType),
+			toTransform(firstPoint, pointType),
+			toTransform(lastPoint, pointType),
+			toTransform(veryLastPoint, pointType)
 		)
 
 		return setmetatable({
-			domains = {0},
+			domains = {0, 1},
 			length = spline.length,
 			splines = {spline},
 		}, CatRom)
@@ -109,10 +116,10 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	local totalLength = 0
 
 	-- Sliding window of control points to quicken instantiating splines
-	local window1 = ToTransform(zerothPoint, pointType) -- FIX: Don't pack them in tables instead?
-	local window2 = ToTransform(firstPoint, pointType)
-	local window3 = ToTransform(points[2], pointType)
-	local window4 = ToTransform(points[3] or veryLastPoint, pointType)
+	local window1 = toTransform(zerothPoint, pointType) -- FIX: Don't pack them in tables instead?
+	local window2 = toTransform(firstPoint, pointType)
+	local window3 = toTransform(points[2], pointType)
+	local window4 = toTransform(points[3] or veryLastPoint, pointType)
 
 	-- Add the first spline, whose first point is not in the points table.
 	splines[1] = Spline.new(window1, window2, window3, window4, alpha, tension)
@@ -124,7 +131,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 		window1 = window2
 		window2 = window3
 		window3 = window4
-		window4 = ToTransform(points[i + 3], pointType)
+		window4 = toTransform(points[i + 3], pointType)
 
 		local spline = Spline.new(window1, window2, window3, window4, alpha, tension)
 		totalLength += spline.length
@@ -133,7 +140,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 
 	-- Add the last spline, whose fourth point is not in the points table
 	splines[numSplines] = Spline.new(window2, window3, window4,
-		ToTransform(veryLastPoint, pointType), alpha, tension)
+		toTransform(veryLastPoint, pointType), alpha, tension)
 	totalLength += splines[numSplines].length
 
 	-- Get the times that separate the domains of the individual splines, and
@@ -289,6 +296,11 @@ end
 function CatRom:SolveCurvature(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
 	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveTorsion(t: number, unitSpeed: boolean?)
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 function CatRom:SolveCFrame_LookAlong(t: number, upVector: Vector3?, unitSpeed: boolean?)
