@@ -238,13 +238,13 @@ end
 function CatRom:SolveLength(a: number?, b: number?)
 	a = a or 0
 	b = b or 1
-
+	
 	if a == 0 and b == 1 then
 		return self.length
 	end
 
 	assert(a >= 0 and b <= 1, "Times must be in [0, 1]")
-
+	
 	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
 	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
 
@@ -316,6 +316,67 @@ end
 function CatRom:SolveCFrame_Squad(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
 	return spline:SolveCFrame_Squad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?, b: number?--[[, unitSpeed: boolean?]])
+	a = a or 0
+	b = b or 1
+	assert(a >= 0 and b <= 1 and a <= b, "Times must be in [0, 1]")
+	
+	numSamples = math.round(numSamples)
+	if numSamples < 1 then
+		return
+	end
+
+	local splines = self.splines
+	local domains = self.domains
+
+	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
+	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
+
+	-- First sample
+	f(splineA, splineATime)
+	
+	-- Samples 2, ..., numSamples - 1
+	local lerpIncrement = (b - a) / (numSamples - 1)
+	local previousDomainMax = domains[splineAIndex]
+	local nextSampleTime = a + lerpIncrement
+	local nextSampleIndex = 2
+
+	for i = splineAIndex, splineBIndex do
+		local spline = splines[i]
+		local domainMin = previousDomainMax
+		local domainMax = domains[i + 1]
+		local domainWidth = domainMax - domainMin
+
+		-- Gather all samples in this spline
+		local times = {}
+		while nextSampleTime <= domainMax and nextSampleIndex < numSamples do
+			table.insert(times, (nextSampleTime - domainMin) / domainWidth)
+			nextSampleTime = a + nextSampleIndex * lerpIncrement
+			nextSampleIndex += 1
+		end
+
+		previousDomainMax = domainMax
+
+		if #times == 0 then
+			continue
+		end
+
+		-- times = if unitSpeed then spline:ReparametrizeBulk(times) else times
+		for _, t in times do
+			f(spline, t)
+		end
+
+		if nextSampleIndex >= numSamples then
+			break
+		end
+	end
+
+	-- Last sample
+	if numSamples > 1 then
+		f(splineB, splineBTime)
+	end
 end
 
 return CatRom
