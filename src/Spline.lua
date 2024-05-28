@@ -181,10 +181,11 @@ function Spline:SolveTorsion(t: number)
 	return cross:Dot(jerk) / cross.Magnitude^2
 end
 
-function Spline:SolveCFrame(t: number)
+function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?)
 	local position = self:SolvePosition(t)
 	local tangent = self:SolveVelocity(t)
 
+	-- Case: Spline is a point
 	if tangent.Magnitude == 0 then
 		local rot = self.rot0
 		if rot then
@@ -194,22 +195,46 @@ function Spline:SolveCFrame(t: number)
 		end
 	end
 
-	return CFrame.lookAlong(position, tangent)
+	return CFrame.lookAlong(position, tangent, upVector or Vector3.yAxis)
 end
 
-function Spline:SolveRotCFrame(t: number)
+-- TODO: Test different version of parameters to fromMatrix.
+-- TODO: Test CFrame.fromMatrix(pos, tangent, normal) * SomeRotation
+function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
+	assert(self.type ~= "Vector2", "SolveFrame_Frenet is undefined on Vector2 splines")
+
+	local position = self:SolvePosition(t)
+	local tangent = self:SolveTangent(t)
+
+	-- Case: Spline is a point
+	if tangent.Magnitude == 0 then
+		local rot = self.rot0
+		if rot then
+			return CFrame.new(position.X, position.Y, position.Z, rot[2], rot[3], rot[4], rot[1])
+		else
+			return CFrame.new(position)
+		end
+	end
+
+	local normal = self:SolveNormal(t, unitSpeed)
+	local binormal = tangent:Cross(normal)
+	return CFrame.fromMatrix(position, -normal, binormal)
+end
+
+function Spline:SolveCFrame_Squad(t: number)
+	assert(self.type == "CFrame", "SolveFrame_Squad is only defined on CFrame splines")
+
 	local rot0 = self.rot0
-	if rot0 then -- CFrameCatRom
+	if rot0 then -- CFrame
+		local pos = self:SolvePosition(t)
 		local rot1 = self.rot1
+		
 		if rot1 then
-			local pos = self:SolvePosition(t)
 			local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, t)
 			return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
 		else -- 1 point
-			return self:SolveCFrame(t)
+			return CFrame.new(pos.X, pos.Y, pos.Z, rot0[2], rot0[3], rot0[4], rot0[1])
 		end
-	else -- VectorCatRom
-		return self:SolveCFrame(t)
 	end
 end
 
@@ -256,8 +281,10 @@ function Spline:SolveLength(a: number?, b: number?)
 end
 
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
--- yields the point s of the way along the spline
+-- yields the point s of the way along the spline.
 function Spline:Reparametrize(s: number)
+	assert(s >= 0 and s <= 1, "Cannot reparametrize outside of [0, 1]")
+
 	if s == 0 or s == 1 then
 		return s
 	elseif self.length == 0 then
@@ -277,12 +304,14 @@ function Spline:Reparametrize(s: number)
 end
 
 -- Performs the actual arc length parametrization
--- s = \int_{0}^{t} ||r'(t)||dt = F(t) - F(0) = F(t)
--- where t is solved as the root-finding problem F(t) - s = 0.
+-- s = (1/L) * \int_{0}^{t} ||r'(u)||du = (1/L) * (F(t) - F(0)) = F(t)/L
+-- where t is solved as the root-finding problem f(t) = F(t)/L - s = 0.
 function Spline:_ReparametrizeHybrid(s: number)
+	local length = self.length
+
 	if s == 0 or s == 1 then
 		return s
-	elseif self.length == 0 then
+	elseif length == 0 then
 		return 0
 	end
 
@@ -297,33 +326,43 @@ function Spline:_ReparametrizeHybrid(s: number)
 	local upper = 1
 
 	for _ = 1, MAX_NEWTON_ITERATIONS do
-		local f =  GaussLegendre.Ten(integrand, 0, t) / self.length - s
+		-- It is mathematically equivalent to instead use
+		-- f = GaussLegendre.Ten(integrand, 0, t) - s * length
+		-- g = self:SolveVelocity(t).Magnitude
+		-- This has the benefit of being able to precompute s * length.
+		-- However, in practice, it converges slower.
+		local f =  GaussLegendre.Ten(integrand, 0, t) / length - s
 		if math.abs(f) < EPSILON then
 			return t
 		end
 
-		local g = self:SolveVelocity(t).Magnitude / self.length
+		-- Compute next candidate via Newton's method
+		local g = self:SolveVelocity(t).Magnitude / length
 		local candidate = t - f / g
 
 		if f > 0 then
-			-- Solution is below the current t
+			-- Solution is below t; decrease upper bound
 			upper = t
+			-- Try next candidate, or use midpoint of bounds if the candidate
+			-- is out of bounds (assumes candidate < t)
 			t = candidate <= lower and (upper + lower) / 2 or candidate
 		else
-			-- Solution is above the current t
+			-- Solution is above t; increase lower bound
 			lower = t
+			-- Try next candidate, or use midpoint of bounds if the candidate
+			-- is out of bounds (assumes candidate > t)
 			t = candidate >= upper and (upper + lower) / 2 or candidate
 		end
 	end
 
-	warn("Failed to reparametrize; falling back to input")
+	warn("Failed to reparametrize; returning input")
 	return s
 end
 
 -- Precomputes a lookup table of numIntervals + 1 evenly spaced arc length
 -- parameters that are used to piecewise linearly interpolate the real
 -- parametrization function
-function Spline:_PrecomputeArcLengthParams(numIntervals: number)
+function Spline:PrecomputeArcLengthParams(numIntervals: number)
 	if self.length == 0 then
 		return
 	end

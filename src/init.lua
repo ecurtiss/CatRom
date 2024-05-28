@@ -144,8 +144,11 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 		ToTransform(veryLastPoint, pointType), alpha, tension)
 	totalLength += splines[numSplines].length
 
-	-- Get the start of the domain interval for each spline
-	local domains = table.create(numSplines - 1)
+	-- Get the times that separate the domains of the individual splines, and
+	-- throw in the left and right boundaries (0 and 1) for convenience to us
+	local domains = table.create(numSplines + 1)
+	domains[numSplines + 1] = 1
+
 	local runningLength = 0
 	for i, spline in splines do
 		domains[i] = runningLength / totalLength
@@ -180,39 +183,34 @@ end
 
 	Using the notation above, the function below takes as input t and returns
 	three outputs: the j^th interpolant, the time (t - a) / (b - a), and the
-	index j. If t < 0, we let j = 1, and if t > 1, we let j = n.
+	index j.
 ]]
 function CatRom:GetSplineAtTime(t: number)
+	assert(t >= 0 and t <= 1, "Time must be in [0, 1]")
+
 	local splines = self.splines
 	local domains = self.domains
 	local numSplines = #splines
 
-	-- There is only one option if there is one spline
+	-- Special cases
 	if numSplines == 1 then
-		return splines[1], t
-	end
-
-	-- Special cases for when t is on the boundary or outside of [0, 1]
-	if t < 0 then
-		return splines[1], t / domains[1], 1
+		return splines[1], t, 1
 	elseif t == 0 then
 		return splines[1], 0, 1
 	elseif t == 1 then
 		return splines[numSplines], 1, numSplines
-	elseif t > 1 then
-		return splines[numSplines], (t - domains[numSplines]) / (1 - domains[numSplines]), numSplines
 	end
 
 	-- Binary search for the spline containing t
 	local left = 1
-	local right = numSplines + 1
+	local right = numSplines
 
 	while left <= right do
 		local mid = math.floor((left + right) / 2)
 		local intervalStart = domains[mid]
 
 		if t >= intervalStart then
-			local intervalEnd = mid == numSplines and 1 or domains[mid + 1]
+			local intervalEnd = domains[mid + 1]
 
 			if t <= intervalEnd then
 				local spline = splines[mid]
@@ -233,7 +231,7 @@ end
 function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
 	numIntervals = if numIntervals then math.max(1, math.round(numIntervals)) else DEFAULT_PRECOMPUTE_INTERVALS
 	for _, spline in self.splines do
-		spline:_PrecomputeArcLengthParams(numIntervals)
+		spline:PrecomputeArcLengthParams(numIntervals)
 	end
 end
 
@@ -244,6 +242,8 @@ function CatRom:SolveLength(a: number?, b: number?)
 	if a == 0 and b == 1 then
 		return self.length
 	end
+
+	assert(a >= 0 and b <= 1, "Times must be in [0, 1]")
 
 	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
 	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
@@ -303,12 +303,17 @@ function CatRom:SolveCurvature(t: number, unitSpeed: boolean?)
 	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveCFrame(t: number, unitSpeed: boolean?)
+function CatRom:SolveCFrame_LookAlong(t: number, upVector: Vector3?, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	return spline:SolveCFrame_LookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
 end
 
-function CatRom:SolveRotCFrame(t: number, unitSpeed: boolean?)
+function CatRom:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrame_Frenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveCFrame_Squad(t: number, unitSpeed: boolean?)
 	local spline, splineTime = self:GetSplineAtTime(t)
 	return spline:SolveRotCFrame(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
