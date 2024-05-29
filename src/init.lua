@@ -51,9 +51,10 @@ local function getUniquePoints(points: {Point}): {Point}
 	return uniquePoints
 end
 
-function CatRom.new(points: {Point}, alpha: number?, tension: number?)
+function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: boolean?)
 	alpha = alpha or DEFAULT_ALPHA -- Parametrization exponent
 	tension = tension or DEFAULT_TENSION
+	loops = not not loops
 
 	-- Check types
 	assert(type(points) == "table", "Points must be a table")
@@ -82,16 +83,18 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?)
 	-- Extrapolate to get 0th and n+1th points
 	local firstPoint = points[1]
 	local lastPoint = points[numPoints]
-	local zerothPoint, veryLastPoint do
-		if firstPoint:FuzzyEq(lastPoint) then
-			-- Loops
-			zerothPoint = points[numPoints - 1]
-			veryLastPoint = points[2]
-		else
-			-- Does not loop
-			zerothPoint = points[2]:Lerp(firstPoint, 2)
-			veryLastPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
+	local zerothPoint, veryLastPoint
+
+	if loops then
+		if not firstPoint:FuzzyEq(lastPoint) then
+			table.insert(points, firstPoint)
+			numPoints += 1
 		end
+		zerothPoint = points[numPoints - 1]
+		veryLastPoint = points[2]
+	else
+		zerothPoint = points[2]:Lerp(firstPoint, 2)
+		veryLastPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
 	end
 
 	-- Early exit: 2 points
