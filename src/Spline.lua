@@ -216,9 +216,8 @@ function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
 	return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
 end
 end
-
--- TODO: Test different version of parameters to fromMatrix.
--- TODO: Test CFrame.fromMatrix(pos, tangent, normal) * SomeRotation
+--- Returns a CFrame with the LookVector, UpVector, and RightVector being the
+--- tangent, normal, and binormal vectors respectively.
 function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
 
@@ -230,7 +229,7 @@ function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
 		else
 	local normal = self:SolveNormal(t, unitSpeed)
 	local binormal = tangent:Cross(normal)
-	return CFrame.fromMatrix(pos, -normal, binormal)
+		return CFrame.fromMatrix(pos, binormal, normal)
 	end
 end
 
