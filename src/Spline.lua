@@ -168,8 +168,7 @@ function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
 		return vel:Cross(acc) / vel.Magnitude^3
 	elseif unitSpeed then
 		-- κ(s) = |T'(s)|
-		local acc = self:SolveAcceleration(t)
-		return acc.Magnitude, acc.Unit
+		return self:SolveAcceleration(t).Magnitude
 	else
 		local vel = self:SolveVelocity(t)
 		local acc = self:SolveAcceleration(t)
@@ -177,10 +176,7 @@ function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
 		local dTangent = acc / speed - vel * vel:Dot(acc) / speed ^ 3
 	
 		-- κ(t) = |T'(t)| / |r'(t)|
-		-- N(t) is the direction of curvature
-		local curvature = dTangent.Magnitude / speed
-		local unitNormal = dTangent.Unit
-		return curvature, unitNormal
+		return dTangent.Magnitude / speed
 	end
 end
 
