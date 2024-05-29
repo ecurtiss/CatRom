@@ -2,39 +2,20 @@
 -- By AstroCode (https://github.com/ecurtiss/catrom)
 
 local Spline = require(script.Spline)
+local Utils = require(script.Utils)
+local Types = require(script.Types)
+
+local toTransform = Utils.ToTransform
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
 local DEFAULT_PRECOMPUTE_INTERVALS = 16
 
-type Point = CFrame | Vector2 | Vector3
-
 local CatRom = {}
 CatRom.__index = CatRom
 
--- Converts cframe.Rotation into a quaternion in {w, x, y, z} format, where
--- w is the angle and (x, y, z) is the axis.
-local function cframeToQuaternion(cframe)
-	local axis, angle = cframe:ToAxisAngle()
-	angle /= 2
-	axis = math.sin(angle) * axis
-	return {math.cos(angle), axis.X, axis.Y, axis.Z}
-end
-
--- Extracts the position and rotation of a point. Only points of type CFrame
--- have a rotational component.
-local function toTransform(point, pointType)
-	if pointType == "Vector2" or pointType == "Vector3" then
-		return {point}
-	elseif pointType == "CFrame" then
-		return {point.Position, cframeToQuaternion(point)}
-	end
-
-	error("Bad inputs")
-end
-
 -- Removes adjacent points that are fuzzy-equal
-local function getUniquePoints(points: {Point}): {Point}
+local function getUniquePoints(points: {Types.Point}): {Types.Point}
 	local prevPoint = points[1]
 	local uniquePoints = {prevPoint}
 	local i = 2
@@ -51,7 +32,7 @@ local function getUniquePoints(points: {Point}): {Point}
 	return uniquePoints
 end
 
-function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: boolean?)
+function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loops: boolean?)
 	alpha = alpha or DEFAULT_ALPHA -- Parametrization exponent
 	tension = tension or DEFAULT_TENSION
 	loops = not not loops
@@ -70,21 +51,31 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: bo
 
 	points = getUniquePoints(points)
 	local numPoints = #points
+	local firstPoint = points[1]
+	local lastPoint = points[numPoints]
 
-	-- Early exit: 1 point
+	-- Early exits
 	if numPoints == 1 then
 		return setmetatable({
 			knots = {0, 1},
 			length = 0,
-			splines = {Spline.fromPoint(toTransform(points[1], pointType))},
+			loops = loops,
+			points = points,
+			splines = {Spline.fromPoint(points[1], pointType)},
+		}, CatRom)
+	elseif numPoints == 2 then
+		local spline = Spline.fromLine(firstPoint, lastPoint, pointType)
+		return setmetatable({
+			knots = {0, 1},
+			length = spline.length,
+			loops = loops,
+			points = points,
+			splines = {spline},
 		}, CatRom)
 	end
 
 	-- Extrapolate to get 0th and n+1th points
-	local firstPoint = points[1]
-	local lastPoint = points[numPoints]
 	local zerothPoint, veryLastPoint
-
 	if loops then
 		if not firstPoint:FuzzyEq(lastPoint) then
 			table.insert(points, firstPoint)
@@ -95,22 +86,6 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: bo
 	else
 		zerothPoint = points[2]:Lerp(firstPoint, 2)
 		veryLastPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
-	end
-
-	-- Early exit: 2 points
-	if numPoints == 2 then
-		local spline = Spline.fromLine(
-			toTransform(zerothPoint, pointType),
-			toTransform(firstPoint, pointType),
-			toTransform(lastPoint, pointType),
-			toTransform(veryLastPoint, pointType)
-		)
-
-		return setmetatable({
-			knots = {0, 1},
-			length = spline.length,
-			splines = {spline},
-		}, CatRom)
 	end
 
 	-- Create splines
@@ -159,6 +134,8 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: bo
 	return setmetatable({
 		knots = knots,
 		length = totalLength,
+		loops = loops,
+		points = points,
 		splines = splines,
 	}, CatRom)
 end
@@ -242,7 +219,7 @@ function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
 	end
 end
 
-function CatRom:SolveLength(a: number?, b: number?)
+function CatRom:SolveLength(a: number?, b: number?): number
 	a = a or 0
 	b = b or 1
 	
@@ -268,66 +245,6 @@ function CatRom:SolveLength(a: number?, b: number?)
 	end
 
 	return lengthA + intermediateLengths + lengthB
-end
-
-function CatRom:SolvePosition(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveVelocity(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveVelocity(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveJerk(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveJerk(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveTangent(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveNormal(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveNormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveBinormal(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveBinormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveCurvature(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveTorsion(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveCFrame_LookAlong(t: number, upVector: Vector3?, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame_LookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
-end
-
-function CatRom:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame_Frenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
-function CatRom:SolveCFrame_Squad(t: number, unitSpeed: boolean?)
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame_Squad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?, b: number?--[[, unitSpeed: boolean?]])
@@ -391,7 +308,7 @@ function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?
 	end
 end
 
-function CatRom:SolveBoundingBox()
+function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	local splines = self.splines
 	local n = #splines - 1
 
@@ -407,6 +324,67 @@ function CatRom:SolveBoundingBox()
 	local max = firstMax:Max(table.unpack(maxima))
 
 	return min, max
+end
+
+-- Proxy methods
+function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveVelocity(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveVelocity(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveJerk(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveJerk(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveNormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveBinormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveCurvature(t: number, unitSpeed: boolean?): number
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveCFrame_LookAlong(t: number, upVector: Vector3?, unitSpeed: boolean?): CFrame
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrame_LookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
+end
+
+function CatRom:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrame_Frenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+function CatRom:SolveCFrame_Squad(t: number, unitSpeed: boolean?): CFrame
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrame_Squad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 return CatRom

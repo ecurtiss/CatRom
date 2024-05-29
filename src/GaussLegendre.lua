@@ -4,7 +4,7 @@
 
 local GaussLegendre = {}
 
-function GaussLegendre.Five(f, a, b)
+function GaussLegendre.Five(f: (number) -> number, a: number, b: number): number
 	if a == b then
 		return 0
 	end
@@ -22,7 +22,7 @@ function GaussLegendre.Five(f, a, b)
 	)
 end
 
-function GaussLegendre.Ten(f, a, b)
+function GaussLegendre.Ten(f: (number) -> number, a: number, b: number): number
 	if a == b then
 		return 0
 	end
@@ -45,7 +45,7 @@ function GaussLegendre.Ten(f, a, b)
 	)
 end
 
-function GaussLegendre.Twenty(f, a, b)
+function GaussLegendre.Twenty(f: (number) -> number, a: number, b: number): number
 	if a == b then
 		return 0
 	end

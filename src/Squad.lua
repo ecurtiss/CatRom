@@ -1,6 +1,8 @@
 -- Spherical quadrangle interpolation (SQUAD)
 -- By Fractality (https://github.com/Fraktality/squad)
 
+local Types = require(script.Parent.Types)
+
 local EPSILON = 1e-4
 
 local function InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
@@ -61,7 +63,13 @@ local function Slerp(s, w0, x0, y0, z0, w1, x1, y1, z1, d)
 		z0*t0 + z1*t1
 end
 
-local function Squad(q0, q1, q2, q3, alpha)
+local function Squad(
+	q0: Types.Quaternion,
+	q1: Types.Quaternion,
+	q2: Types.Quaternion,
+	q3: Types.Quaternion,
+	alpha: number
+): (number, number, number, number)
 	local q1w, q1x, q1y, q1z = q1[1], q1[2], q1[3], q1[4]
 	local q2w, q2x, q2y, q2z = q2[1], q2[2], q2[3], q2[4]
 

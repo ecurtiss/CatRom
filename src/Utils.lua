@@ -29,4 +29,25 @@ function Utils.SolveQuadratic(a: number, b: number, c: number): (number?, number
 	return nil, nil
 end
 
+-- Converts cframe.Rotation into a quaternion in {w, x, y, z} format, where
+-- w is the angle and (x, y, z) is the axis.
+local function cframeToQuaternion(cframe)
+	local axis, angle = cframe:ToAxisAngle()
+	angle /= 2
+	axis = math.sin(angle) * axis
+	return {math.cos(angle), axis.X, axis.Y, axis.Z}
+end
+
+-- Extracts the position and rotation of a point. Only points of type CFrame
+-- have a rotational component.
+function Utils.ToTransform(point, pointType)
+	if pointType == "Vector2" or pointType == "Vector3" then
+		return {point}
+	elseif pointType == "CFrame" then
+		return {point.Position, cframeToQuaternion(point)}
+	end
+
+	error("Bad inputs")
+end
+
 return Utils

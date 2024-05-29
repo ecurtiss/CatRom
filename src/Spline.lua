@@ -15,6 +15,7 @@
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 local Utils = require(script.Parent.Utils)
+local Types = require(script.Parent.Types)
 
 local MAX_NEWTON_ITERATIONS = 16
 local EPSILON = 2e-7
@@ -71,25 +72,31 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 	return self
 end
 
-function Spline.fromPoint(trans)
+function Spline.fromPoint(point: Types.Point, pointType: Types.PointType)
+	local trans = Utils.ToTransform(point, pointType)
 	local pos = trans[1]
 	local zero = pos * 0
 
 	return setmetatable({
 		arcLengthParamsLUT = nil,
 		length = 0,
-		type = if trans[2] then "CFrame" else typeof(pos),
+		type = pointType,
 
 		rot0 = trans[2],
 
 		a = zero,
 		b = zero,
 		c = zero,
-		d = trans[1],
+		d = pos,
 	}, Spline)
 end
 
-function Spline.fromLine(trans0, trans1, trans2, trans3)
+function Spline.fromLine(p1: Types.Point, p2: Types.Point, pointType: Types.PointType)
+	local trans0 = Utils.ToTransform(p2:Lerp(p1, 2), pointType)
+	local trans1 = Utils.ToTransform(p1, pointType)
+	local trans2 = Utils.ToTransform(p2, pointType)
+	local trans3 = Utils.ToTransform(p1:Lerp(p2, 2), pointType)
+
 	local pos1 = trans1[1]
 	local zero = pos1 * 0
 	local pos2_pos1 = trans2[1] - pos1
@@ -111,32 +118,32 @@ function Spline.fromLine(trans0, trans1, trans2, trans3)
 	}, Spline)
 end
 
-function Spline:SolvePosition(t: number)
+function Spline:SolvePosition(t: number): Types.Vector
 	-- r(t) using Horner's method
 	return self.d + t * (self.c + t * (self.b + t * self.a))
 end
 
-function Spline:SolveVelocity(t: number)
+function Spline:SolveVelocity(t: number): Types.Vector
 	-- r'(t) using Horner's method
 	return self.c + t * (2 * self.b + t * 3 * self.a)
 end
 
-function Spline:SolveAcceleration(t: number)
+function Spline:SolveAcceleration(t: number): Types.Vector
 	-- r''(t)
 	return 6 * self.a * t + 2 * self.b
 end
 
-function Spline:SolveJerk()
+function Spline:SolveJerk(): Types.Vector
 	-- r'''(t)
 	return 6 * self.a
 end
 
-function Spline:SolveTangent(t: number)
+function Spline:SolveTangent(t: number): Types.Vector
 	-- T(t) = r'(t) / |r'(t)|
 	return self:SolveVelocity(t).Unit
 end
 
-function Spline:SolveNormal(t: number, unitSpeed: boolean?)
+function Spline:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
 	if self.type == "Vector2" then
 		local tangent = self:SolveTangent(t)
 		return Vector2.new(-tangent.Y, tangent.X)
@@ -154,14 +161,13 @@ function Spline:SolveNormal(t: number, unitSpeed: boolean?)
 	end
 end
 
-function Spline:SolveBinormal(t: number, unitSpeed: boolean?)
+function Spline:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
 	assert(self.type ~= "Vector2", "SolveBinormal is undefined on Vector2 splines")
-
 	-- T(t) x N(t)
 	return self:SolveTangent(t):Cross(self:SolveNormal(t, unitSpeed))
 end
 
-function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
+function Spline:SolveCurvature(t: number, unitSpeed: boolean?): number
 	if self.type == "Vector2" then
 		local vel = self:SolveVelocity(t)
 		local acc = self:SolveAcceleration(t)
@@ -180,7 +186,7 @@ function Spline:SolveCurvature(t: number, unitSpeed: boolean?)
 	end
 end
 
-function Spline:SolveTorsion(t: number)
+function Spline:SolveTorsion(t: number): number
 	assert(self.type ~= "Vector2", "SolveTorsion is undefined on Vector2 splines")
 
 	local vel = self:SolveVelocity(t)
@@ -192,7 +198,7 @@ function Spline:SolveTorsion(t: number)
 	return cross:Dot(jerk) / cross.Magnitude^2
 end
 
-local function solveCFrameForPointSpline(pos, rot)
+local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): CFrame
 		if rot then
 			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
 		else
@@ -200,7 +206,7 @@ local function solveCFrameForPointSpline(pos, rot)
 		end
 	end
 
-function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?)
+function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveVelocity(t)
 
@@ -213,7 +219,7 @@ end
 
 -- TODO: Test different version of parameters to fromMatrix.
 -- TODO: Test CFrame.fromMatrix(pos, tangent, normal) * SomeRotation
-function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
+function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
@@ -228,7 +234,7 @@ function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?)
 	end
 end
 
-function Spline:SolveCFrame_Squad(t: number)
+function Spline:SolveCFrame_Squad(t: number): CFrame
 	assert(self.type == "CFrame", "SolveCFrame_Squad is only defined on CFrame splines")
 
 	local pos = self:SolvePosition(t)
@@ -247,7 +253,7 @@ end
 -- the normal plane at b. It does this by obtaining a rotation-minimizing
 -- frame as a rotation of the Frenet frame, provided a Frenet frame exists.
 -- Source: Guggeinheimer, "Computing frames along a trajectory" (1989)
-function Spline:ParallelTransport_Frenet(v: Vector3, a: number, b: number, unitSpeed: boolean?)
+function Spline:ParallelTransport_Frenet(v: Vector3, a: number, b: number, unitSpeed: boolean?): Vector3?
 	assert(self.type ~= "Vector2", "ParallelTransportFast is undefined for Vector2 splines")
 
 	local bCurvature, bNormal = self:SolveCurvature(b, unitSpeed)
@@ -272,7 +278,7 @@ function Spline:ParallelTransport_Frenet(v: Vector3, a: number, b: number, unitS
 	return (math.cos(bAngleFromNormal) * bNormal + math.sin(bAngleFromNormal) * bBinormal).Unit, angleOffset
 end
 
-function Spline:SolveLength(a: number?, b: number?)
+function Spline:SolveLength(a: number?, b: number?): number
 	a = a or 0
 	b = b or 1
 
@@ -298,7 +304,7 @@ local function addBoundingBoxCandidate(a, b, c, candidates, spline)
 	end
 end
 
-function Spline:SolveBoundingBox()
+function Spline:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	-- First derivative coefficients
 	local a1 = 3 * self.a
 	local b1 = 2 * self.b
@@ -320,7 +326,7 @@ end
 
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
 -- yields the point s of the way along the spline.
-function Spline:Reparametrize(s: number)
+function Spline:Reparametrize(s: number): number
 	assert(s >= 0 and s <= 1, "Cannot reparametrize outside of [0, 1]")
 
 	if s == 0 or s == 1 then
@@ -344,7 +350,7 @@ end
 -- Performs the actual arc length parametrization
 -- s = (1/L) * \int_{0}^{t} |r'(u)|du = (1/L) * (F(t) - F(0)) = F(t)/L
 -- where t is solved as the root-finding problem f(t) = F(t)/L - s = 0.
-function Spline:_ReparametrizeHybrid(s: number)
+function Spline:_ReparametrizeHybrid(s: number): number
 	local length = self.length
 
 	if s == 0 or s == 1 then
