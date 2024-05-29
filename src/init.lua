@@ -74,7 +74,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: bo
 	-- Early exit: 1 point
 	if numPoints == 1 then
 		return setmetatable({
-			domains = {0, 1},
+			knots = {0, 1},
 			length = 0,
 			splines = {Spline.fromPoint(toTransform(points[1], pointType))},
 		}, CatRom)
@@ -107,7 +107,7 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: bo
 		)
 
 		return setmetatable({
-			domains = {0, 1},
+			knots = {0, 1},
 			length = spline.length,
 			splines = {spline},
 		}, CatRom)
@@ -146,48 +146,57 @@ function CatRom.new(points: {Point}, alpha: number?, tension: number?, loops: bo
 		toTransform(veryLastPoint, pointType), alpha, tension)
 	totalLength += splines[numSplines].length
 
-	-- Get the times that separate the domains of the individual splines, and
-	-- throw in the left and right boundaries (0 and 1) for convenience to us
-	local domains = table.create(numSplines + 1)
-	domains[numSplines + 1] = 1
+	-- Get the knots of the spline
+	local knots = table.create(numSplines + 1)
+	knots[numSplines + 1] = 1
 
 	local runningLength = 0
 	for i, spline in splines do
-		domains[i] = runningLength / totalLength
+		knots[i] = runningLength / totalLength
 		runningLength += spline.length
 	end
 
 	return setmetatable({
-		domains = domains,
+		knots = knots,
 		length = totalLength,
 		splines = splines,
 	}, CatRom)
 end
 
 --[[
-	Suppose we have a spline with n interpolants chained together. Denote the
-	length of the i^th interpolant as L_i and the sum of the lengths as L.
-	Consider a function f_i of the i^th interpolant (ex. SolvePosition) that
-	we want to extend to a function f of the entire spline.
+	In CatRom, a spline S is a piecewise function of n interpolants defined on
+	the interval [0, 1]. We partition [0, 1] into n subintervals of the form
+	[k_i, k_{i+1}) where 0 = k1 < k2 < ... < kn < k_{n+1} = 1. The n+1 numbers
+	k1, ..., k_{n+1} are called "knots".
+	
+	The i^th interpolant S_i is defined on the subinterval [k_i, k_{i+1}), where
+	the width k_i - k_{i-1} is proportional to the arc length of S_i. That is,
+	k_i - k_{i-1} is the arc length of S_i divided by the total arc length of S.
+	
+	Below is an example with n = 5. We can infer that S2 has a short arc length
+	while S4 has a long arc length.
 
-	To define f, we partition its domain [0, 1] into n smaller domains, where
-	the i^th domain D_i has "length" L_i/L. Here is an example with n = 5:
+	k1               k2     k3           k4                       k5         k6
+	|       S1       |  S2  |     S3     |           S4           |    S5    |
+	0 ---------------------------------------------------------------------- 1
 
-	|       D1       |  D2  |     D3     |            D4            |    D5    |
-	0 ------------------------------------------------------------------------ 1
+	To compute S(t), we find the subinterval [a, b) containing t and evaluate
+	its corresponding interpolant S_j at t. However, in implementation, S_j is
+	actually defined on [0, 1), so we first map [a, b) -> [0, 1). Hence
+	S(t) = S_j((t - a) / (b - a)). Finally, for completeness, S(1) = S_n(1) with
+	S_n having domain [0, 1] instead of [0, 1).
 
-	Then, to compute f(t), we find the domain D_j = [a, b] containing t and
-	evaluate f_j at time (t - a) / (b - a).
-
-	Using the notation above, the function below takes as input t and returns
-	three outputs: the j^th interpolant, the time (t - a) / (b - a), and the
-	index j.
+	Using the notation above, the below function GetSplineAtTime() takes as
+	input t and returns three outputs:
+	  1. the interpolant S_j
+	  2. the time (t - a) / (b - a)
+	  3. the index j.
 ]]
 function CatRom:GetSplineAtTime(t: number)
 	assert(t >= 0 and t <= 1, "Time must be in [0, 1]")
 
 	local splines = self.splines
-	local domains = self.domains
+	local knots = self.knots
 	local numSplines = #splines
 
 	-- Special cases
@@ -205,10 +214,10 @@ function CatRom:GetSplineAtTime(t: number)
 
 	while left <= right do
 		local mid = math.floor((left + right) / 2)
-		local intervalStart = domains[mid]
+		local intervalStart = knots[mid]
 
 		if t >= intervalStart then
-			local intervalEnd = domains[mid + 1]
+			local intervalEnd = knots[mid + 1]
 
 			if t <= intervalEnd then
 				local spline = splines[mid]
@@ -332,7 +341,7 @@ function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?
 	end
 
 	local splines = self.splines
-	local domains = self.domains
+	local knots = self.knots
 
 	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
 	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
@@ -342,14 +351,14 @@ function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?
 	
 	-- Samples 2, ..., numSamples - 1
 	local lerpIncrement = (b - a) / (numSamples - 1)
-	local previousDomainMax = domains[splineAIndex]
+	local previousDomainMax = knots[splineAIndex]
 	local nextSampleTime = a + lerpIncrement
 	local nextSampleIndex = 2
 
 	for i = splineAIndex, splineBIndex do
 		local spline = splines[i]
 		local domainMin = previousDomainMax
-		local domainMax = domains[i + 1]
+		local domainMax = knots[i + 1]
 		local domainWidth = domainMax - domainMin
 
 		-- Gather all samples in this spline
