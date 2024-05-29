@@ -382,4 +382,22 @@ function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?
 	end
 end
 
+function CatRom:SolveBoundingBox()
+	local splines = self.splines
+	local n = #splines - 1
+
+	local firstMin, firstMax = splines[1]:SolveBoundingBox()
+	local minima = table.create(n)
+	local maxima = table.create(n)
+
+	for i = 1, n do
+		minima[i], maxima[i] = splines[i + 1]:SolveBoundingBox()
+	end
+
+	local min = firstMin:Min(table.unpack(minima))
+	local max = firstMax:Max(table.unpack(maxima))
+
+	return min, max
+end
+
 return CatRom

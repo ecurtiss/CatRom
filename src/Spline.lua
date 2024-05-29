@@ -14,6 +14,7 @@
 
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
+local Utils = require(script.Parent.Utils)
 
 local MAX_NEWTON_ITERATIONS = 16
 local EPSILON = 2e-7
@@ -286,6 +287,39 @@ function Spline:SolveLength(a: number?, b: number?)
 	return GaussLegendre.Ten(function(x)
 		return self:SolveVelocity(x).Magnitude
 	end, a, b)
+end
+
+local function addBoundingBoxCandidate(a, b, c, candidates, spline)
+	local t1, t2 = Utils.SolveQuadratic(a, b, c)
+
+	if t1 ~= nil then
+		if t1 >= 0 and t1 <= 1 then
+			table.insert(candidates, spline:SolvePosition(t1))
+		end
+		if t2 ~= nil and t2 >= 0 and t2 <= 1 then
+			table.insert(candidates, spline:SolvePosition(t2))
+		end
+	end
+end
+
+function Spline:SolveBoundingBox()
+	-- First derivative coefficients
+	local a1 = 3 * self.a
+	local b1 = 2 * self.b
+	local c1 = self.c
+
+	local candidates = { self:SolvePosition(0) }
+	addBoundingBoxCandidate(a1.X, b1.X, c1.X, candidates, self)
+	addBoundingBoxCandidate(a1.Y, b1.Y, c1.Y, candidates, self)
+	if self.type ~= "Vector2" then
+		addBoundingBoxCandidate(a1.Z, b1.Z, c1.Z, candidates, self)
+	end
+
+	local pos = self:SolvePosition(1)
+	local min = pos:Min(table.unpack(candidates))
+	local max = pos:Max(table.unpack(candidates))
+
+	return min, max
 end
 
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
