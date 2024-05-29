@@ -1,5 +1,5 @@
 -- Spherical quadrangle interpolation (SQUAD)
--- By Fractality
+-- By Fractality (https://github.com/Fraktality/squad)
 
 local EPSILON = 1e-4
 
