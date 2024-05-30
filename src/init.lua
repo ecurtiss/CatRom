@@ -377,7 +377,7 @@ function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFram
 			while splines[i].rmfLUT == nil do
 				i -= 1
 			end
-			self:PrecomputeRotationMinimizingFrames(numFrames, i + 1)
+			self:PrecomputeRotationMinimizingFrames(numFrames, i + 1, splineIndex)
 		end
 	end
 
