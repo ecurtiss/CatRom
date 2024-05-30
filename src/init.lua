@@ -9,7 +9,8 @@ local toTransform = Utils.ToTransform
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
-local DEFAULT_PRECOMPUTE_INTERVALS = 16
+local DEFAULT_REPARAMETRIZATION_PRECOMPUTES = 16
+local DEFAULT_RMF_PRECOMPUTES = 16
 
 local CatRom = {}
 CatRom.__index = CatRom
@@ -213,7 +214,7 @@ function CatRom:GetSplineAtTime(t: number)
 end
 
 function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
-	numIntervals = if numIntervals then math.max(1, math.round(numIntervals)) else DEFAULT_PRECOMPUTE_INTERVALS
+	numIntervals = if numIntervals then math.max(1, math.round(numIntervals)) else DEFAULT_REPARAMETRIZATION_PRECOMPUTES
 	for _, spline in self.splines do
 		spline:PrecomputeArcLengthParams(numIntervals)
 	end
@@ -251,6 +252,7 @@ function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?
 	a = a or 0
 	b = b or 1
 	assert(a >= 0 and b <= 1 and a <= b, "Times must be in [0, 1]")
+	assert(type(numSamples) == "number", "Bad numSamples")
 	
 	numSamples = math.round(numSamples)
 	if numSamples < 1 then
@@ -324,6 +326,54 @@ function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	local max = firstMax:Max(table.unpack(maxima))
 
 	return min, max
+end
+
+local function precomputeRotationMinimizingFrames(self, firstSplineIndex: number, lastSplineIndex: number, numFrames: number?)
+	numFrames = if numFrames then math.max(1, numFrames) else DEFAULT_RMF_PRECOMPUTES
+
+	local prevFrame
+	if firstSplineIndex == 1 then
+		prevFrame = CFrame.lookAlong(self:SolvePosition(0), self:SolveTangent(0))
+	else
+		prevFrame = self.splines[firstSplineIndex - 1].rmfLUT[numFrames + 1]
+	end
+
+	for i = firstSplineIndex, lastSplineIndex do
+		local spline = self.splines[i]
+		spline:PrecomputeRotationMinimizingFrames(numFrames, prevFrame)
+		prevFrame = spline.rmfLUT[numFrames + 1]
+	end
+end
+
+function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?)
+	precomputeRotationMinimizingFrames(self, 1, #self.splines, numFrames)
+end
+
+--- If the user is tweening an RMF over time, then they can supply the RMF from
+--- the previous frame. Otherwise, we precompute a lookup table of RMFs for only
+--- the necessary splines.
+function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFrames: number?): CFrame
+	local spline, splineTime, splineIndex = self:GetSplineAtTime(t)
+	local splines = self.splines
+
+	if prevFrame then
+		return spline:SolveCFrame_RMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+	end
+
+	-- Precompute only the necessary RMF LUTs
+	if spline.rmfLUT == nil then
+		if splines[1].rmfLUT == nil then
+			precomputeRotationMinimizingFrames(self, 1, splineIndex, numFrames)
+		else
+			local i = splineIndex - 1
+			while splines[i].rmfLUT == nil do
+				i -= 1
+			end
+			precomputeRotationMinimizingFrames(self, i + 1, splineIndex, numFrames)
+		end
+	end
+
+	return spline:SolveCFrame_RMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
 end
 
 -- Proxy methods

@@ -53,6 +53,7 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 	local self = setmetatable({
 		arcLengthParamsLUT = nil,
 		length = nil,
+		rmfLUT = nil,
 		type = if trans0[2] then "CFrame" else typeof(pos0),
 
 		-- Rotations (nil if type is Vector2 or Vector3)
@@ -80,6 +81,7 @@ function Spline.fromPoint(point: Types.Point, pointType: Types.PointType)
 	return setmetatable({
 		arcLengthParamsLUT = nil,
 		length = 0,
+		rmfLUT = nil,
 		type = pointType,
 
 		rot0 = trans[2],
@@ -104,6 +106,7 @@ function Spline.fromLine(p1: Types.Point, p2: Types.Point, pointType: Types.Poin
 	return setmetatable({
 		arcLengthParamsLUT = nil,
 		length = pos2_pos1.Magnitude,
+		rmfLUT = nil,
 		type = if trans0[2] then "CFrame" else typeof(pos1),
 		
 		rot0 = trans0[2],
@@ -248,33 +251,87 @@ function Spline:SolveCFrame_Squad(t: number): CFrame
 	end
 end
 
--- Parallel transports the vector v in the normal plane at a to a vector in
--- the normal plane at b. It does this by obtaining a rotation-minimizing
--- frame as a rotation of the Frenet frame, provided a Frenet frame exists.
--- Source: Guggeinheimer, "Computing frames along a trajectory" (1989)
-function Spline:ParallelTransport_Frenet(v: Vector3, a: number, b: number, unitSpeed: boolean?): Vector3?
-	assert(self.type ~= "Vector2", "ParallelTransportFast is undefined for Vector2 splines")
+local function doubleReflect(
+	prevPos: Vector3,
+	prevRight: Vector3,
+	prevUp: Vector3,
+	prevLook: Vector3,
+	pos: Vector3,
+	look: Vector3
+): (Vector3, Vector3, Vector3, Vector3, CFrame)
+	-- First reflection
+	local planeNormal1 = (pos - prevPos).Unit
+	local prevRightReflected = prevRight - 2 * planeNormal1:Dot(prevRight) * planeNormal1
+	local prevLookReflected = prevLook - 2 * planeNormal1:Dot(prevLook) * planeNormal1
+	local prevUpReflected = prevUp - 2 * planeNormal1:Dot(prevUp) * planeNormal1
 
-	local bCurvature, bNormal = self:SolveCurvature(b, unitSpeed)
+	-- Second reflection
+	local planeNormal2 = (look - prevLookReflected).Unit
+	local right = prevRightReflected - 2 * planeNormal2:Dot(prevRightReflected) * planeNormal2
+	local up = prevUpReflected - 2 * planeNormal2:Dot(prevUpReflected) * planeNormal2
 
-	-- Case: Curve is a straight line at b; no Frenet frame
-	if bCurvature < EPSILON then
-		return nil
+	return pos, right, up, look, CFrame.fromMatrix(pos, right, up, -look)
+end
+
+--- Uses the double reflection method to precompute rotation-minimizing frames
+--- Source: Wang, "Computation of Rotation Minimizing Frames" (2008)
+function Spline:PrecomputeRotationMinimizingFrames(numFrames: number, initialFrame: CFrame)
+	local rmfLUT = table.create(numFrames + 1)
+	rmfLUT[1] = initialFrame
+
+	local prevPos = initialFrame.Position
+	local prevRight = initialFrame.RightVector
+	local prevUp = initialFrame.UpVector
+	local prevLook = initialFrame.LookVector
+
+	for i = 1, numFrames do
+		local t = i / numFrames
+		prevPos, prevRight, prevUp, prevLook, rmfLUT[i + 1] = doubleReflect(
+			prevPos,
+			prevRight,
+			prevUp,
+			prevLook,
+			self:SolvePosition(t),
+			self:SolveTangent(t))
 	end
 
-	local aTangent = self:SolveTangent(a)
-	local aNormal = self:SolveNormal(a, unitSpeed)
+	self.rmfLUT = rmfLUT
+end
 
-	local bTangent = self:SolveTangent(b)
-	local bBinormal = bTangent:Cross(bNormal)
+function Spline:SolveCFrame_RMF(t: number, prevFrame: CFrame?): CFrame
+	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
+	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRotationMinimizingFrames before using SolveCFrame_RMF")
 
-	local aAngleFromNormal = aNormal:Angle(v, aTangent)
-	local angleOffset = GaussLegendre.Twenty(function(t: number)
-		return self:SolveTorsion(t) * self:SolveVelocity(t).Magnitude
-	end, a, b)
-	local bAngleFromNormal = aAngleFromNormal - angleOffset
+	if not prevFrame then
+		local prevFrameIndex = math.floor(t * (#self.rmfLUT - 1)) + 1
+		local prevFrameTime = (prevFrameIndex - 1) / (#self.rmfLUT - 1)
+		prevFrame = self.rmfLUT[prevFrameIndex]
 
-	return (math.cos(bAngleFromNormal) * bNormal + math.sin(bAngleFromNormal) * bBinormal).Unit, angleOffset
+		if t - prevFrameTime < EPSILON then
+			return prevFrame
+	end
+	end
+
+	local pos = self:SolvePosition(t)
+	local tangent = self:SolveTangent(t)
+
+	if pos:FuzzyEq(prevFrame.Position) then
+		if tangent:FuzzyEq(prevFrame.LookVector) then
+			return prevFrame
+		else
+			error("prevFrame too close to new frame")
+		end
+	end
+
+	local _, _, _, _, cf = doubleReflect(
+		prevFrame.Position,
+		prevFrame.RightVector,
+		prevFrame.UpVector,
+		prevFrame.LookVector,
+		self:SolvePosition(t),
+		self:SolveTangent(t))
+
+	return cf
 end
 
 function Spline:SolveLength(a: number?, b: number?): number
