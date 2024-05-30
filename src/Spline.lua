@@ -146,12 +146,10 @@ function Spline:SolveTangent(t: number): Types.Vector
 	return self:SolveVelocity(t).Unit
 end
 
-function Spline:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
+function Spline:SolveNormal(t: number): Types.Vector
 	if self.type == "Vector2" then
 		local tangent = self:SolveTangent(t)
 		return Vector2.new(-tangent.Y, tangent.X)
-	elseif unitSpeed then
-		return self:SolveAcceleration(t).Unit
 	else
 		-- N(t) = T'(t) / |T'(t)|
 		-- The return is equivalent to N(t) when the derivatives are carried out.
@@ -164,20 +162,17 @@ function Spline:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
 	end
 end
 
-function Spline:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
+function Spline:SolveBinormal(t: number): Vector3
 	assert(self.type ~= "Vector2", "SolveBinormal is undefined on Vector2 splines")
 	-- T(t) x N(t)
-	return self:SolveTangent(t):Cross(self:SolveNormal(t, unitSpeed))
+	return self:SolveTangent(t):Cross(self:SolveNormal(t))
 end
 
-function Spline:SolveCurvature(t: number, unitSpeed: boolean?): number
+function Spline:SolveCurvature(t: number): number
 	if self.type == "Vector2" then
 		local vel = self:SolveVelocity(t)
 		local acc = self:SolveAcceleration(t)
 		return vel:Cross(acc) / vel.Magnitude^3
-	elseif unitSpeed then
-		-- κ(s) = |T'(s)|
-		return self:SolveAcceleration(t).Magnitude
 	else
 		local vel = self:SolveVelocity(t)
 		local acc = self:SolveAcceleration(t)
@@ -221,7 +216,7 @@ end
 end
 --- Returns a CFrame with the LookVector, UpVector, and RightVector being the
 --- tangent, normal, and binormal vectors respectively.
-function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
+function Spline:SolveCFrame_Frenet(t: number): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
@@ -230,7 +225,7 @@ function Spline:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
 	if tangent.Magnitude == 0 then -- Spline is a point
 		return solveCFrameForPointSpline(pos, self.rot0)
 		else
-	local normal = self:SolveNormal(t, unitSpeed)
+		local normal = self:SolveNormal(t)
 	local binormal = tangent:Cross(normal)
 		return CFrame.fromMatrix(pos, binormal, normal)
 	end
