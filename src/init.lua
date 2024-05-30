@@ -422,9 +422,14 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
 	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
 
+	local delta = (angleB - angleA) % (2 * math.pi)
+	if delta > math.pi then
+		delta -= 2 * math.pi
+	end
+
 	return function(t: number): Vector3
 		local frameT = self:SolveCFrame_RMF(from + t * totalTime, unitSpeed)
-		local angleT = angleA * (1 - t) + angleB * t
+		local angleT = angleA + t * delta
 		local normalT = math.cos(angleT) * frameT.RightVector + math.sin(angleT) * frameT.UpVector
 		return normalT
 	end
