@@ -328,8 +328,10 @@ function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	return min, max
 end
 
-local function precomputeRotationMinimizingFrames(self, firstSplineIndex: number, lastSplineIndex: number, numFrames: number?)
+function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?, firstSplineIndex: number?, lastSplineIndex: number?)
 	numFrames = if numFrames then math.max(1, numFrames) else DEFAULT_RMF_PRECOMPUTES
+	firstSplineIndex = firstSplineIndex or 1
+	lastSplineIndex = lastSplineIndex or #self.splines
 
 	local prevFrame
 	if firstSplineIndex == 1 then
@@ -343,10 +345,6 @@ local function precomputeRotationMinimizingFrames(self, firstSplineIndex: number
 		spline:PrecomputeRotationMinimizingFrames(numFrames, prevFrame)
 		prevFrame = spline.rmfLUT[numFrames + 1]
 	end
-end
-
-function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?)
-	precomputeRotationMinimizingFrames(self, 1, #self.splines, numFrames)
 end
 
 --- If the user is tweening an RMF over time, then they can supply the RMF from
@@ -363,13 +361,13 @@ function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFram
 	-- Precompute only the necessary RMF LUTs
 	if spline.rmfLUT == nil then
 		if splines[1].rmfLUT == nil then
-			precomputeRotationMinimizingFrames(self, 1, splineIndex, numFrames)
+			self:PrecomputeRotationMinimizingFrames(numFrames, 1, splineIndex)
 		else
 			local i = splineIndex - 1
 			while splines[i].rmfLUT == nil do
 				i -= 1
 			end
-			precomputeRotationMinimizingFrames(self, i + 1, splineIndex, numFrames)
+			self:PrecomputeRotationMinimizingFrames(numFrames, i + 1)
 		end
 	end
 
