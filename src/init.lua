@@ -11,6 +11,7 @@ local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
 local DEFAULT_REPARAMETRIZATION_PRECOMPUTES = 16
 local DEFAULT_RMF_PRECOMPUTES = 4
+local EPSILON = 2e-7
 
 local CatRom = {}
 CatRom.__index = CatRom
@@ -418,9 +419,21 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
 	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
 
+	if normalA.Magnitude > EPSILON then
+		normalA = normalA.Unit
+	else
+		error("fromVector cannot be tangent to the curve")
+	end
+
 	local frameB = self:SolveCFrame_RMF(to, unitSpeed)
 	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
 	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
+
+	if normalB.Magnitude > EPSILON then
+		normalB = normalB.Unit
+	else
+		error("toVector cannot be tangent to the curve")
+	end
 
 	local delta = (angleB - angleA) % (2 * math.pi)
 	if delta > math.pi then
