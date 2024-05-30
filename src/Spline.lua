@@ -204,12 +204,12 @@ end
 ---- Moving frame methods ------------------------------------------------------
 --------------------------------------------------------------------------------
 local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): CFrame
-		if rot then
-			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
-		else
-			return CFrame.new(pos)
-		end
+	if rot then
+		return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
+	else
+		return CFrame.new(pos)
 	end
+end
 
 function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
 	local pos = self:SolvePosition(t)
@@ -218,8 +218,8 @@ function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
 	if tangent.Magnitude == 0 then -- Spline is a point
 		return solveCFrameForPointSpline(pos, self.rot0)
 	else
-	return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
-end
+		return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
+	end
 end
 --- Returns a CFrame with the LookVector, UpVector, and RightVector being the
 --- tangent, normal, and binormal vectors respectively.
@@ -231,9 +231,9 @@ function Spline:SolveCFrame_Frenet(t: number): CFrame
 
 	if tangent.Magnitude == 0 then -- Spline is a point
 		return solveCFrameForPointSpline(pos, self.rot0)
-		else
+	else
 		local normal = self:SolveNormal(t)
-	local binormal = tangent:Cross(normal)
+		local binormal = tangent:Cross(normal)
 		return CFrame.fromMatrix(pos, binormal, normal)
 	end
 end
@@ -243,11 +243,11 @@ function Spline:SolveCFrame_Squad(t: number): CFrame
 
 	local pos = self:SolvePosition(t)
 	local rot0 = self.rot0
-		local rot1 = self.rot1
-		
-		if rot1 then
-			local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, t)
-			return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
+	local rot1 = self.rot1
+	
+	if rot1 then
+		local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, t)
+		return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
 	else -- Spline is a point
 		return solveCFrameForPointSpline(pos, rot0)
 	end
@@ -311,7 +311,7 @@ function Spline:SolveCFrame_RMF(t: number, prevFrame: CFrame?): CFrame
 
 		if t - prevFrameTime < EPSILON then
 			return prevFrame
-	end
+		end
 	end
 
 	local pos = self:SolvePosition(t)
