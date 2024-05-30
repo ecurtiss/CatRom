@@ -141,6 +141,10 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	}, CatRom)
 end
 
+--------------------------------------------------------------------------------
+---- Piecewise methods ---------------------------------------------------------
+--------------------------------------------------------------------------------
+
 --[=[
 	In CatRom, a spline S is a piecewise function of n interpolants defined on
 	the interval [0, 1]. We partition [0, 1] into n subintervals of the form
@@ -330,6 +334,10 @@ function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	return min, max
 end
 
+--------------------------------------------------------------------------------
+---- Rotation-minimizing frames ------------------------------------------------
+--------------------------------------------------------------------------------
+
 function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?, firstSplineIndex: number?, lastSplineIndex: number?)
 	numFrames = if numFrames then math.max(1, numFrames) else DEFAULT_RMF_PRECOMPUTES
 	firstSplineIndex = firstSplineIndex or 1
@@ -421,6 +429,10 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 		return normalT
 	end
 end
+
+--------------------------------------------------------------------------------
+---- Proxy methods -------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
 	local spline, splineTime = self:GetSplineAtTime(t)

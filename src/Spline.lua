@@ -121,6 +121,10 @@ function Spline.fromLine(p1: Types.Point, p2: Types.Point, pointType: Types.Poin
 	}, Spline)
 end
 
+--------------------------------------------------------------------------------
+---- Basic methods -------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 function Spline:SolvePosition(t: number): Types.Vector
 	-- r(t) using Horner's method
 	return self.d + t * (self.c + t * (self.b + t * self.a))
@@ -196,6 +200,9 @@ function Spline:SolveTorsion(t: number): number
 	return cross:Dot(jerk) / cross.Magnitude^2
 end
 
+--------------------------------------------------------------------------------
+---- Moving frame methods ------------------------------------------------------
+--------------------------------------------------------------------------------
 local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): CFrame
 		if rot then
 			return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
@@ -329,6 +336,10 @@ function Spline:SolveCFrame_RMF(t: number, prevFrame: CFrame?): CFrame
 	return cf
 end
 
+--------------------------------------------------------------------------------
+---- Numerical methods ---------------------------------------------------------
+--------------------------------------------------------------------------------
+
 function Spline:SolveLength(a: number?, b: number?): number
 	a = a or 0
 	b = b or 1
@@ -374,6 +385,10 @@ function Spline:SolveBoundingBox(): (Types.Vector, Types.Vector)
 
 	return min, max
 end
+
+--------------------------------------------------------------------------------
+---- Arc length reparametrization ----------------------------------------------
+--------------------------------------------------------------------------------
 
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
 -- yields the point s of the way along the spline.
