@@ -294,7 +294,7 @@ function Spline:PrecomputeRotationMinimizingFrames(numFrames: number, initialFra
 end
 
 function Spline:SolveCFrame_RMF(t: number, prevFrame: CFrame?): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
+	assert(self.type ~= "Vector2", "SolveCFrame_RMF is undefined on Vector2 splines")
 	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRotationMinimizingFrames before using SolveCFrame_RMF")
 
 	if not prevFrame then
@@ -378,7 +378,7 @@ end
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
 -- yields the point s of the way along the spline.
 function Spline:Reparametrize(s: number): number
-	assert(s >= 0 and s <= 1, "Cannot reparametrize outside of [0, 1]")
+	assert(s >= 0 and s <= 1, "Time must be in [0, 1]")
 
 	if s == 0 or s == 1 then
 		return s

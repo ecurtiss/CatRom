@@ -1,6 +1,10 @@
--- Legendre roots and quadrature weights sourced from
--- https://pomax.github.io/bezierinfo/legendre-gauss.html
--- with highest precision afforded by 64-bit floats.
+--[[
+	Performs numerical integration via Gauss-Legendre quadrature
+
+	Legendre roots and quadrature weights sourced from
+	https://pomax.github.io/bezierinfo/legendre-gauss.html
+	with highest precision afforded by 64-bit floats.
+]]
 
 local GaussLegendre = {}
 

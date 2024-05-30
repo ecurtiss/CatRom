@@ -1,9 +1,11 @@
+local Types = require(script.Parent.Types)
+
 local Utils = {}
 
 --[=[
 	Solves for the real roots of the quadratic polynomial at^2 + bt + c. Returns
-	nil if there are no real roots. Returns only one real root if they are
-	equal.
+	nil if there are no real roots. Returns only one real root if the two real
+	roots are equal.
 --]=]
 function Utils.SolveQuadratic(a: number, b: number, c: number): (number?, number?)
 	if a == 0 then
@@ -31,7 +33,7 @@ end
 
 -- Converts cframe.Rotation into a quaternion in {w, x, y, z} format, where
 -- w is the angle and (x, y, z) is the axis.
-local function cframeToQuaternion(cframe)
+local function cframeToQuaternion(cframe: CFrame): Types.Quaternion
 	local axis, angle = cframe:ToAxisAngle()
 	angle /= 2
 	axis = math.sin(angle) * axis
@@ -40,14 +42,14 @@ end
 
 -- Extracts the position and rotation of a point. Only points of type CFrame
 -- have a rotational component.
-function Utils.ToTransform(point, pointType)
+function Utils.ToTransform(point: Types.Point, pointType: Types.PointType)
 	if pointType == "Vector2" or pointType == "Vector3" then
 		return {point}
 	elseif pointType == "CFrame" then
 		return {point.Position, cframeToQuaternion(point)}
+	else
+		error("Bad inputs")
 	end
-
-	error("Bad inputs")
 end
 
 return Utils

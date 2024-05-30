@@ -141,7 +141,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	}, CatRom)
 end
 
---[[
+--[=[
 	In CatRom, a spline S is a piecewise function of n interpolants defined on
 	the interval [0, 1]. We partition [0, 1] into n subintervals of the form
 	[k_i, k_{i+1}) where 0 = k1 < k2 < ... < kn < k_{n+1} = 1. The n+1 numbers
@@ -169,7 +169,7 @@ end
 	  1. the interpolant S_j
 	  2. the time (t - a) / (b - a)
 	  3. the index j.
-]]
+]=]
 function CatRom:GetSplineAtTime(t: number)
 	assert(t >= 0 and t <= 1, "Time must be in [0, 1]")
 
@@ -220,9 +220,10 @@ function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
 	end
 end
 
-function CatRom:SolveLength(a: number?, b: number?): number
-	a = a or 0
-	b = b or 1
+function CatRom:SolveLength(from: number?, to: number?): number
+	local a = from or 0
+	local b = to or 1
+	a, b = math.min(a, b), math.max(a, b)
 	
 	if a == 0 and b == 1 then
 		return self.length
@@ -248,10 +249,11 @@ function CatRom:SolveLength(a: number?, b: number?): number
 	return lengthA + intermediateLengths + lengthB
 end
 
-function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, a: number?, b: number?--[[, unitSpeed: boolean?]])
-	a = a or 0
-	b = b or 1
-	assert(a >= 0 and b <= 1 and a <= b, "Times must be in [0, 1]")
+function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, from: number?, to: number?--[[, unitSpeed: boolean?]])
+	local a = from or 0
+	local b = to or 1
+	assert(a <= b, "Time 'from' cannot be greater than time 'to'")
+	assert(a >= 0 and b <= 1, "Times must be in [0, 1]")
 	assert(type(numSamples) == "number", "Bad numSamples")
 	
 	numSamples = math.round(numSamples)
@@ -420,7 +422,7 @@ function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
 	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
-function CatRom:SolveCFrame_LookAlong(t: number, upVector: Vector3?, unitSpeed: boolean?): CFrame
+function CatRom:SolveCFrame_LookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
 	local spline, splineTime = self:GetSplineAtTime(t)
 	return spline:SolveCFrame_LookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
 end
