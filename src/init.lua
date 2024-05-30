@@ -10,7 +10,7 @@ local toTransform = Utils.ToTransform
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
 local DEFAULT_REPARAMETRIZATION_PRECOMPUTES = 16
-local DEFAULT_RMF_PRECOMPUTES = 16
+local DEFAULT_RMF_PRECOMPUTES = 4
 
 local CatRom = {}
 CatRom.__index = CatRom
