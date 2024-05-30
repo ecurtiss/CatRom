@@ -376,7 +376,52 @@ function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFram
 	return spline:SolveCFrame_RMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
 end
 
--- Proxy methods
+function CatRom:GetParallelTransportInterpolant(data: Vector3 | CFrame, from: number?, to: number?, unitSpeed: boolean?): (number) -> Vector3 | CFrame
+	from = from or 0
+	to = to or 1
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+	
+	local dataType = typeof(data)
+	local dataIsVector3 = dataType == "Vector3"
+	assert(dataIsVector3 or dataType == "CFrame", "Bad data: Can only parallel transport Vector3s and CFrames")
+
+	local initialFrame = self:SolveCFrame_RMF(from, unitSpeed)
+	local totalTime = to - from
+
+	if dataIsVector3 then
+		local localVector = initialFrame:VectorToObjectSpace(data)
+		return function(t: number): Vector3
+			return self:SolveCFrame_RMF((t - from) / totalTime, unitSpeed):VectorToWorldSpace(localVector)
+		end
+	else
+		local localCFrame = initialFrame:Inverse() * data
+		return function(t: number): CFrame
+			return self:SolveCFrame_RMF((t - from) / totalTime, unitSpeed) * localCFrame
+		end
+	end
+end
+
+function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to: number, toVector: Vector3, unitSpeed: boolean?): (number) -> Vector3
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+
+	local totalTime = to - from
+
+	local frameA = self:SolveCFrame_RMF(from, unitSpeed)
+	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
+	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
+
+	local frameB = self:SolveCFrame_RMF(to, unitSpeed)
+	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
+	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
+
+	return function(t: number): Vector3
+		local frameT = self:SolveCFrame_RMF(from + t * totalTime, unitSpeed)
+		local angleT = angleA * (1 - t) + angleB * t
+		local normalT = math.cos(angleT) * frameT.RightVector + math.sin(angleT) * frameT.UpVector
+		return normalT
+	end
+end
+
 function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
 	local spline, splineTime = self:GetSplineAtTime(t)
 	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
