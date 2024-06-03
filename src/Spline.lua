@@ -160,9 +160,9 @@ function Spline:SolveNormal(t: number): Types.Vector
 		-- In particular, the vector being normalized is T'(t) * |r'(t)| ^ 3, but
 		-- the |r'(t)| ^ 3 scaling doesn't affect the result because we normalize
 		-- it anyway. This scaled version is faster to compute.
-		local vel = self:SolveVelocity(t) -- p for prime (1st derivative)
-		local acc = self:SolveAcceleration(t) -- pp for prime prime (2nd derivative)
-		return (acc * vel.Magnitude ^ 2 - vel * acc:Dot(vel)).Unit
+		local vel = self:SolveVelocity(t)
+		local acc = self:SolveAcceleration(t)
+		return (acc * vel.Magnitude ^ 2 - vel * vel:Dot(acc)).Unit
 	end
 end
 
@@ -212,6 +212,8 @@ local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): C
 end
 
 function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
+	assert(self.type ~= "Vector2", "SolveCFrame_LookAlong is undefined on Vector2 splines")
+
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveVelocity(t)
 
