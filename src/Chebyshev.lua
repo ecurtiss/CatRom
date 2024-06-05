@@ -65,9 +65,9 @@ function Chebyshev:Evaluate(x: number): number
 		xDiffList[i] = (-1) ^ (i - 1) / diff
 	end
 
-	local val = xDiffList[1] / 2
-	local numerator = gridValues[1] * val
-	local denominator = val
+	local val
+	local numerator = 0
+	local denominator = 1 / (2 * x)
 
 	for i = 2, numGridPoints - 1 do
 		val = xDiffList[i]
