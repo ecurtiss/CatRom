@@ -411,14 +411,14 @@ function Spline:Reparametrize(s: number): number
 		return arcLengthParamsLUT[intervalIndex] * (1 - t)
 			 + arcLengthParamsLUT[intervalIndex + 1] * t
 	else
-		return self:_ReparametrizeHybrid(s)
+		return self:_ReparametrizeNewtonBisection(s)
 	end
 end
 
--- Performs the actual arc length parametrization
+-- Performs the actual arc length reparametrization
 -- s = (1/L) * \int_{0}^{t} |r'(u)|du = (1/L) * (F(t) - F(0)) = F(t)/L
 -- where t is solved as the root-finding problem f(t) = F(t)/L - s = 0.
-function Spline:_ReparametrizeHybrid(s: number): number
+function Spline:_ReparametrizeNewtonBisection(s: number): number
 	local length = self.length
 
 	if s == 0 or s == 1 then
@@ -467,8 +467,8 @@ function Spline:_ReparametrizeHybrid(s: number): number
 		end
 	end
 
-	warn("Failed to reparametrize; returning input")
-	return s
+	warn("Exceeded maximum Newton iterations")
+	return (lower + upper) / 2
 end
 
 -- Precomputes a lookup table of numIntervals + 1 evenly spaced arc length
