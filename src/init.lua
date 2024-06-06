@@ -57,16 +57,11 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	local lastPoint = points[numPoints]
 
 	-- Early exits
-	if numPoints == 1 then
-		return setmetatable({
-			knots = {0, 1},
-			length = 0,
-			loops = loops,
-			points = points,
-			splines = {Spline.fromPoint(points[1], pointType)},
-		}, CatRom)
-	elseif numPoints == 2 then
-		local spline = Spline.fromLine(firstPoint, lastPoint, pointType)
+	if numPoints <= 2 then
+		local spline = if numPoints == 1
+			then Spline.fromPoint(points[1], pointType)
+			else Spline.fromLine(firstPoint, lastPoint, pointType)
+
 		return setmetatable({
 			knots = {0, 1},
 			length = spline.length,
