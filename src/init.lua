@@ -249,7 +249,7 @@ function CatRom:SolveLength(from: number?, to: number?): number
 	return lengthA + intermediateLengths + lengthB
 end
 
-function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, from: number?, to: number?--[[, unitSpeed: boolean?]])
+function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, from: number?, to: number?, unitSpeed: boolean?)
 	local a = from or 0
 	local b = to or 1
 	assert(a <= b, "Time 'from' cannot be greater than time 'to'")
@@ -282,28 +282,19 @@ function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, from: numb
 		local domainMax = knots[i + 1]
 		local domainWidth = domainMax - domainMin
 
-		-- Gather all samples in this spline
-		local times = {}
+		-- Run all samples in this spline
 		while nextSampleTime <= domainMax and nextSampleIndex < numSamples do
-			table.insert(times, (nextSampleTime - domainMin) / domainWidth)
+			local t = (nextSampleTime - domainMin) / domainWidth
+			f(spline, if unitSpeed then spline:Reparametrize(t) else t)
 			nextSampleTime = a + nextSampleIndex * lerpIncrement
 			nextSampleIndex += 1
-		end
-
-		previousDomainMax = domainMax
-
-		if #times == 0 then
-			continue
-		end
-
-		-- times = if unitSpeed then spline:ReparametrizeBulk(times) else times
-		for _, t in times do
-			f(spline, t)
 		end
 
 		if nextSampleIndex >= numSamples then
 			break
 		end
+
+		previousDomainMax = domainMax
 	end
 
 	-- Last sample
