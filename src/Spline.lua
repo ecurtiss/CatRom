@@ -1,6 +1,4 @@
 --[[
-	Catmull-Rom spline class
-
 	Notation
 	t: Time parameter
 	s: Arc length parameter
@@ -23,6 +21,7 @@ local EPSILON = 2e-7
 
 --[=[
 	@class Spline
+	@ignore
 
 	Catmull-Rom spline class
 ]=]
