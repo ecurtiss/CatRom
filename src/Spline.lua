@@ -20,6 +20,11 @@ local Types = require(script.Parent.Types)
 local MAX_NEWTON_ITERATIONS = 16
 local EPSILON = 2e-7
 
+--[=[
+	@class Spline
+
+	Catmull-Rom spline class
+]=]
 local Spline = {}
 Spline.__index = Spline
 
@@ -122,7 +127,7 @@ function Spline.fromLine(p1: Types.Point, p2: Types.Point, pointType: Types.Poin
 end
 
 --------------------------------------------------------------------------------
----- Basic methods -------------------------------------------------------------
+-- Basic methods ---------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 function Spline:SolvePosition(t: number): Types.Vector
@@ -201,8 +206,9 @@ function Spline:SolveTorsion(t: number): number
 end
 
 --------------------------------------------------------------------------------
----- Moving frame methods ------------------------------------------------------
+-- Moving frame methods --------------------------------------------------------
 --------------------------------------------------------------------------------
+
 local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): CFrame
 	if rot then
 		return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
@@ -339,7 +345,7 @@ function Spline:SolveCFrame_RMF(t: number, prevFrame: CFrame?): CFrame
 end
 
 --------------------------------------------------------------------------------
----- Numerical methods ---------------------------------------------------------
+-- Numerical methods -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
 function Spline:SolveLength(a: number?, b: number?): number
@@ -389,7 +395,7 @@ function Spline:SolveBoundingBox(): (Types.Vector, Types.Vector)
 end
 
 --------------------------------------------------------------------------------
----- Arc length reparametrization ----------------------------------------------
+-- Arc length reparametrization ------------------------------------------------
 --------------------------------------------------------------------------------
 
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that

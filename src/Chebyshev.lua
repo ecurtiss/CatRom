@@ -1,22 +1,26 @@
--- Interpolates the arc length function of a spline using a Chebyshev polynomial
--- Extracted from work by DarkInfernoDrago (https://github.com/rbxmath/rbxmath)
-
 local SOLVE_TOLERANCE = 1e-4
 local GET_SOLVE_BOUNDS_TOLERANCE = 1e-6
 local MAX_REGULA_FALSI_ITERATIONS = 10
 
+--[=[
+	@class Chebyshev
+	@ignore
+	
+	Interpolates the arc length function of a spline using a Chebyshev polynomial.
+	Extracted from work by DarkInfernoDrago (https://github.com/rbxmath/rbxmath).
+]=]
 local Chebyshev = {}
 Chebyshev.__index = Chebyshev
 
 local transformedChebyshevGridCache = {}
 
---- Maps [-1, 1] -> [0, 1]
+-- Maps [-1, 1] -> [0, 1]
 local function transformToSplineDomain(x: number): number
 	return x / 2 + 0.5
 end
 
---- Gets a Chebyshev grid with degree + 1 points, transformed from [-1, 1] to
---- [0, 1]
+-- Gets a Chebyshev grid with degree + 1 points, transformed from [-1, 1] to
+-- [0, 1]
 local function getTransformedChebyshevGrid(degree: number): {number}
 	if transformedChebyshevGridCache[degree] then
 		return transformedChebyshevGridCache[degree]

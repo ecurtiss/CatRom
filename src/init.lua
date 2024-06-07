@@ -1,6 +1,3 @@
--- A package for creating chains of Catmull-Rom splines
--- By AstroCode (https://github.com/ecurtiss/catrom)
-
 local Spline = require(script.Spline)
 local Utils = require(script.Utils)
 local Types = require(script.Types)
@@ -13,6 +10,10 @@ local DEFAULT_REPARAMETRIZATION_PRECOMPUTES = 16
 local DEFAULT_RMF_PRECOMPUTES = 4
 local EPSILON = 2e-7
 
+--[=[
+	@class CatRom
+	Manages chains of Catmull-Rom splines.
+]=]
 local CatRom = {}
 CatRom.__index = CatRom
 
@@ -138,7 +139,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 end
 
 --------------------------------------------------------------------------------
----- Piecewise methods ---------------------------------------------------------
+-- Piecewise methods -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
 --[=[
@@ -322,7 +323,7 @@ function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 end
 
 --------------------------------------------------------------------------------
----- Rotation-minimizing frames ------------------------------------------------
+-- Rotation-minimizing frames --------------------------------------------------
 --------------------------------------------------------------------------------
 
 function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?, firstSplineIndex: number?, lastSplineIndex: number?)
@@ -435,7 +436,7 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 end
 
 --------------------------------------------------------------------------------
----- Proxy methods -------------------------------------------------------------
+-- Proxy methods ---------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
