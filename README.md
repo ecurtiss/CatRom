@@ -8,7 +8,7 @@ Creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%
 
 The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve that passes through all of its control points.
 
-<img src="docs/tube.png" height="300"/>
+<img src="img/tube.png" height="300"/>
 
 ## How to use
 The CatRom constructor takes 3 arguments:
