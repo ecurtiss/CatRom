@@ -1,6 +1,6 @@
 <div align="center">
-	<img src="https://github.com/ecurtiss/CatRom/blob/master/docs/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
-	<img src="https://github.com/ecurtiss/CatRom/blob/master/docs/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
+	<img src="https://github.com/ecurtiss/CatRom/blob/master/img/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
+	<img src="https://github.com/ecurtiss/CatRom/blob/master/img/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
 	<hr/>
 </div>
 
