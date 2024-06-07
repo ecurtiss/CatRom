@@ -3,4 +3,6 @@ export type PointType = "Vector2" | "Vector3" | "CFrame"
 export type Vector = Vector2 | Vector3
 export type Quaternion = { number } -- {w, x, y, z}
 
+export type Spline = {}
+
 return nil

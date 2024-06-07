@@ -1,8 +1,5 @@
-local Spline = require(script.Spline)
-local Utils = require(script.Utils)
+local SplineFactory = require(script.SplineFactory)
 local Types = require(script.Types)
-
-local toTransform = Utils.ToTransform
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
@@ -45,81 +42,47 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	assert(type(alpha) == "number", "Alpha must be a number")
 	assert(type(tension) == "number", "Tension must be a number")
 	assert(#points > 0, "Points table cannot be empty")
+	
 	local pointType = typeof(points[1])
 	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
 		"Points must be a table of Vector2s, Vector3s, or CFrames")
-	for _, point in points do
+	
+		for _, point in points do
 		assert(typeof(point) == pointType, "All points must have the same type")
 	end
 
+	-- Get points
 	points = getUniquePoints(points)
-	local numPoints = #points
-	local firstPoint = points[1]
-	local lastPoint = points[numPoints]
+
+	if loops and not points[1]:FuzzyEq(points[#points]) then
+		table.insert(points, points[1])
+	end
 
 	-- Early exits
-	if numPoints <= 2 then
-		local spline = if numPoints == 1
-			then Spline.fromPoint(points[1], pointType)
-			else Spline.fromLine(firstPoint, lastPoint, pointType)
+	if #points <= 2 then
+		local spline = if #points == 1
+			then SplineFactory.CreatePointSpline(points[1], pointType)
+			else SplineFactory.CreateLineSpline(points[1], points[2], pointType)
 
 		return setmetatable({
 			knots = {0, 1},
 			length = spline.length,
-			loops = loops,
 			points = points,
 			splines = {spline},
 		}, CatRom)
 	end
 
-	-- Extrapolate to get 0th and n+1th points
-	local zerothPoint, veryLastPoint
-	if loops then
-		if not firstPoint:FuzzyEq(lastPoint) then
-			table.insert(points, firstPoint)
-			numPoints += 1
-		end
-		zerothPoint = points[numPoints - 1]
-		veryLastPoint = points[2]
-	else
-		zerothPoint = points[2]:Lerp(firstPoint, 2)
-		veryLastPoint = points[numPoints - 1]:Lerp(lastPoint, 2)
-	end
-
 	-- Create splines
-	local numSplines = numPoints - 1
-	local splines = table.create(numSplines)
+	local splines = SplineFactory.CreateSplines(points, alpha, tension, loops, pointType)
+	local numSplines = #splines
+
+	-- Tally length
 	local totalLength = 0
-
-	-- Sliding window of control points to quicken instantiating splines
-	local window1 = toTransform(zerothPoint, pointType) -- FIX: Don't pack them in tables instead?
-	local window2 = toTransform(firstPoint, pointType)
-	local window3 = toTransform(points[2], pointType)
-	local window4 = toTransform(points[3] or veryLastPoint, pointType)
-
-	-- Add the first spline, whose first point is not in the points table.
-	splines[1] = Spline.new(window1, window2, window3, window4, alpha, tension)
-	totalLength += splines[1].length
-
-	-- Add the middle splines
-	for i = 1, numPoints - 3 do
-		-- Shift the window
-		window1 = window2
-		window2 = window3
-		window3 = window4
-		window4 = toTransform(points[i + 3], pointType)
-
-		local spline = Spline.new(window1, window2, window3, window4, alpha, tension)
+	for _, spline in splines do
 		totalLength += spline.length
-		splines[i + 1] = spline
 	end
 
-	-- Add the last spline, whose fourth point is not in the points table
-	splines[numSplines] = Spline.new(window2, window3, window4,
-		toTransform(veryLastPoint, pointType), alpha, tension)
-	totalLength += splines[numSplines].length
-
-	-- Get the knots of the spline
+	-- Create knot vector
 	local knots = table.create(numSplines + 1)
 	knots[numSplines + 1] = 1
 
@@ -132,7 +95,6 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	return setmetatable({
 		knots = knots,
 		length = totalLength,
-		loops = loops,
 		points = points,
 		splines = splines,
 	}, CatRom)

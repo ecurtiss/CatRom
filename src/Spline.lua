@@ -28,108 +28,44 @@ local EPSILON = 2e-7
 local Spline = {}
 Spline.__index = Spline
 
-function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
-	-- Parametrize
-	-- https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
-	local pos0 = trans0[1]
-	local pos1 = trans1[1]
-	local pos2 = trans2[1]
-	local pos3 = trans3[1]
-
-	local pos1_pos0 = pos1 - pos0
-	local pos2_pos1 = pos2 - pos1
-	local pos3_pos2 = pos3 - pos2
-
-	local a, b, c
-	local t0 = 0
-	local t1 = pos1_pos0.Magnitude ^ alpha + t0
-	local t2 = pos2_pos1.Magnitude ^ alpha + t1
-	local t3 = pos3_pos2.Magnitude ^ alpha + t2
-
-	local scalar = (1 - tension) * (t2 - t1)
-
-	local m1 = scalar * (pos1_pos0 / (t1 - t0) - (pos2 - pos0) / (t2 - t0) + pos2_pos1 / (t2 - t1))
-	local m2 = scalar * (pos2_pos1 / (t2 - t1) - (pos3 - pos1) / (t3 - t1) + pos3_pos2 / (t3 - t2))
-
-	a = 2 * -pos2_pos1 + m1 + m2
-	b = 3 * pos2_pos1 - 2 * m1 - m2
-	c = m1
-	
+function Spline.new(
+	a: Types.Vector,
+	b: Types.Vector,
+	c: Types.Vector,
+	d: Types.Vector,
+	pointType: Types.PointType,
+	q0: Types.Quaternion?,
+	q1: Types.Quaternion?,
+	q2: Types.Quaternion?,
+	q3: Types.Quaternion?,
+	length: number?
+)
 	local self = setmetatable({
 		cheb = nil,
 		chebDegree = nil,
 		chebIsLUT = nil,
-		length = nil,
-		rmfLUT = nil,
-		type = if trans0[2] then "CFrame" else typeof(pos0),
-
-		-- Rotations (nil if type is Vector2 or Vector3)
-		rot0 = trans0[2],
-		rot1 = trans1[2],
-		rot2 = trans2[2],
-		rot3 = trans3[2],
-
-		-- Coefficient vectors for position/velocity/acceleration polynomials
-		a = a,
-		b = b,
-		c = c,
-		d = pos1,
-	}, Spline)
-	self.length = self:SolveLength()
-	
-	return self
-end
-
-function Spline.fromPoint(point: Types.Point, pointType: Types.PointType)
-	local trans = Utils.ToTransform(point, pointType)
-	local pos = trans[1]
-	local zero = pos * 0
-
-	return setmetatable({
-		cheb = nil,
-		chebDegree = nil,
-		chebIsLUT = nil,
-		length = 0,
+		length = length,
 		rmfLUT = nil,
 		type = pointType,
 
-		rot0 = trans[2],
+		-- Coefficient vectors for position/velocity/acceleration/jerk polynomials
+		a = a,
+		b = b,
+		c = c,
+		d = d,
 
-		a = zero,
-		b = zero,
-		c = zero,
-		d = pos,
+		-- Rotations (nil if type is Vector2 or Vector3)
+		q0 = q0,
+		q1 = q1,
+		q2 = q2,
+		q3 = q3,
 	}, Spline)
-end
 
-function Spline.fromLine(p1: Types.Point, p2: Types.Point, pointType: Types.PointType)
-	local trans0 = Utils.ToTransform(p2:Lerp(p1, 2), pointType)
-	local trans1 = Utils.ToTransform(p1, pointType)
-	local trans2 = Utils.ToTransform(p2, pointType)
-	local trans3 = Utils.ToTransform(p1:Lerp(p2, 2), pointType)
+	if not length then
+		self.length = self:SolveLength()
+	end
 
-	local pos1 = trans1[1]
-	local zero = pos1 * 0
-	local pos2_pos1 = trans2[1] - pos1
-
-	return setmetatable({
-		cheb = nil,
-		chebDegree = nil,
-		chebIsLUT = nil,
-		length = pos2_pos1.Magnitude,
-		rmfLUT = nil,
-		type = if trans0[2] then "CFrame" else typeof(pos1),
-		
-		rot0 = trans0[2],
-		rot1 = trans1[2],
-		rot2 = trans2[2],
-		rot3 = trans3[2],
-
-		a = zero,
-		b = zero,
-		c = pos2_pos1,
-		d = pos1,
-	}, Spline)
+	return self
 end
 
 --------------------------------------------------------------------------------
@@ -230,7 +166,7 @@ function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
 	local tangent = self:SolveVelocity(t)
 
 	if tangent.Magnitude == 0 then -- Spline is a point
-		return solveCFrameForPointSpline(pos, self.rot0)
+		return solveCFrameForPointSpline(pos, self.q0)
 	else
 		return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
 	end
@@ -244,7 +180,7 @@ function Spline:SolveCFrame_Frenet(t: number): CFrame
 	local tangent = self:SolveTangent(t)
 
 	if tangent.Magnitude == 0 then -- Spline is a point
-		return solveCFrameForPointSpline(pos, self.rot0)
+		return solveCFrameForPointSpline(pos, self.q0)
 	else
 		local normal = self:SolveNormal(t)
 		local binormal = tangent:Cross(normal)
@@ -256,14 +192,14 @@ function Spline:SolveCFrame_Squad(t: number): CFrame
 	assert(self.type == "CFrame", "SolveCFrame_Squad is only defined on CFrame splines")
 
 	local pos = self:SolvePosition(t)
-	local rot0 = self.rot0
-	local rot1 = self.rot1
+	local q0 = self.q0
+	local q1 = self.q1
 	
-	if rot1 then
-		local qw, qx, qy, qz = Squad(rot0, rot1, self.rot2, self.rot3, t)
+	if q1 then
+		local qw, qx, qy, qz = Squad(q0, q1, self.q2, self.q3, t)
 		return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
 	else -- Spline is a point
-		return solveCFrameForPointSpline(pos, rot0)
+		return solveCFrameForPointSpline(pos, q0)
 	end
 end
 

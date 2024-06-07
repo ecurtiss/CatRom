@@ -39,7 +39,7 @@ end
 
 -- Converts cframe.Rotation into a quaternion in {w, x, y, z} format, where
 -- w is the angle and (x, y, z) is the axis.
-local function cframeToQuaternion(cframe: CFrame): Types.Quaternion
+function Utils.CFrameToQuaternion(cframe: CFrame): Types.Quaternion
 	local axis, angle = cframe:ToAxisAngle()
 	angle /= 2
 	axis = math.sin(angle) * axis
@@ -48,11 +48,11 @@ end
 
 --- Extracts the position and rotation of a point. Only points of type CFrame
 --- have a rotational component.
-function Utils.ToTransform(point: Types.Point, pointType: Types.PointType)
+function Utils.SeparatePositionAndRotation(point: Types.Point, pointType: Types.PointType): (Types.Point, Types.Quaternion?)
 	if pointType == "Vector2" or pointType == "Vector3" then
-		return {point}
+		return point
 	elseif pointType == "CFrame" then
-		return {point.Position, cframeToQuaternion(point)}
+		return point.Position, Utils.CFrameToQuaternion(point)
 	else
 		error("Bad inputs")
 	end
