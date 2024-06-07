@@ -12,6 +12,7 @@
 	τ: Torsion
 ]]
 
+local Chebyshev = require(script.Parent.Chebyshev)
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 local Utils = require(script.Parent.Utils)
@@ -56,7 +57,9 @@ function Spline.new(trans0, trans1, trans2, trans3, alpha, tension)
 	c = m1
 	
 	local self = setmetatable({
-		arcLengthParamsLUT = nil,
+		cheb = nil,
+		chebDegree = nil,
+		chebIsLUT = nil,
 		length = nil,
 		rmfLUT = nil,
 		type = if trans0[2] then "CFrame" else typeof(pos0),
@@ -84,7 +87,9 @@ function Spline.fromPoint(point: Types.Point, pointType: Types.PointType)
 	local zero = pos * 0
 
 	return setmetatable({
-		arcLengthParamsLUT = nil,
+		cheb = nil,
+		chebDegree = nil,
+		chebIsLUT = nil,
 		length = 0,
 		rmfLUT = nil,
 		type = pointType,
@@ -109,7 +114,9 @@ function Spline.fromLine(p1: Types.Point, p2: Types.Point, pointType: Types.Poin
 	local pos2_pos1 = trans2[1] - pos1
 
 	return setmetatable({
-		arcLengthParamsLUT = nil,
+		cheb = nil,
+		chebDegree = nil,
+		chebIsLUT = nil,
 		length = pos2_pos1.Magnitude,
 		rmfLUT = nil,
 		type = if trans0[2] then "CFrame" else typeof(pos1),
@@ -409,13 +416,37 @@ function Spline:Reparametrize(s: number): number
 		return 0
 	end
 
-	local arcLengthParamsLUT = self.arcLengthParamsLUT
-	if arcLengthParamsLUT then
-		local numIntervals = #self.arcLengthParamsLUT - 1
-		local intervalIndex = math.floor(s * numIntervals) + 1
-		local t = s * numIntervals - intervalIndex + 1
-		return arcLengthParamsLUT[intervalIndex] * (1 - t)
-			 + arcLengthParamsLUT[intervalIndex + 1] * t
+	if self.chebIsLUT ~= nil then
+		-- chebIsLUT ~= nil is a proxy to check whether the user called
+		-- PrecomputeUnitSpeedData
+
+		if not self.cheb then
+			-- User precomputed with "on demand" preference
+			self.cheb = self:_GetChebyshevInterpolant(self.chebDegree)
+		end
+
+		if self.chebIsLUT then
+			-- Use the cheb's grid values as a lookup table
+			local grid = self.cheb.grid
+			local gridValues = self.cheb.gridValues
+			local leftBound = grid[1]
+		
+			-- TODO: Make this a binary search
+			for i = 2, #grid do
+				local rightBound = grid[i]
+		
+				if s >= leftBound and s <= rightBound then
+					local t = (s - leftBound) / (rightBound - leftBound)
+					return gridValues[i - 1] * (1 - t) + gridValues[i] * t
+				end
+		
+				leftBound = rightBound
+			end
+
+			warn("\"fast\" reparametrization strategy failed; reverting to \"accurate\" strategy")
+		end
+
+		return self.cheb:Evaluate(s)
 	else
 		return self:_ReparametrizeNewtonBisection(s)
 	end
@@ -477,22 +508,27 @@ function Spline:_ReparametrizeNewtonBisection(s: number): number
 	return (lower + upper) / 2
 end
 
--- Precomputes a lookup table of numIntervals + 1 evenly spaced arc length
--- parameters that are used to piecewise linearly interpolate the real
--- parametrization function
-function Spline:PrecomputeArcLengthParams(numIntervals: number)
-	if self.length == 0 then
-		return
-	end
+function Spline:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: boolean, degree: number)
+	self.chebIsLUT = useChebAsLUT
 
-	local arcLengthParamsLUT = table.create(numIntervals + 1)
-	arcLengthParamsLUT[1] = 0
-	arcLengthParamsLUT[numIntervals + 1] = 1
-	for i = 2, numIntervals do
-		arcLengthParamsLUT[i] = self:_ReparametrizeHybrid((i - 1) / numIntervals)
+	if precomputeNow then
+		self.cheb = self:_GetChebyshevInterpolant(degree)
+	else
+		-- Save the degree for when we create the chebyshev interpolant later
+		self.chebDegree = degree
 	end
+end
 
-	self.arcLengthParamsLUT = arcLengthParamsLUT
+function Spline:_GetChebyshevInterpolant(degree: number)
+	local interpolant = function(u)
+		return self:SolveVelocity(u).Magnitude
+	end
+	local length = self.length
+	local cheb = Chebyshev.new(function(t)
+		return GaussLegendre.Ten(interpolant, 0, t) / length
+	end, degree)
+
+	return cheb:Invert()
 end
 
 return Spline

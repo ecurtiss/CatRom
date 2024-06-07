@@ -6,7 +6,7 @@ local toTransform = Utils.ToTransform
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
-local DEFAULT_REPARAMETRIZATION_PRECOMPUTES = 16
+local DEFAULT_CHEB_DEGREE = 8
 local DEFAULT_RMF_PRECOMPUTES = 4
 local EPSILON = 2e-7
 
@@ -214,10 +214,20 @@ function CatRom:GetSplineAtTime(t: number)
 	error("Failed to get spline")
 end
 
-function CatRom:PrecomputeArcLengthParams(numIntervals: number?)
-	numIntervals = if numIntervals then math.max(1, math.round(numIntervals)) else DEFAULT_REPARAMETRIZATION_PRECOMPUTES
+function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "fast" | "accurate"?,  degree: number?)
+	when = when or "now"
+	strategy = strategy or "fast"
+	degree = degree or DEFAULT_CHEB_DEGREE
+
+	assert(when == "now" or when == "on demand", "when must be \"now\" or \"on demand\"")
+	assert(strategy == "fast" or strategy == "accurate", "strategy must be \"fast\" or \"accurate\"")
+	assert(type(degree) == "number" and degree >= 1 and degree % 2 == 0, "degree must be an integer >= 1")
+
+	local precomputeNow = when == "now"
+	local useChebAsLUT = strategy == "fast"
+
 	for _, spline in self.splines do
-		spline:PrecomputeArcLengthParams(numIntervals)
+		spline:PrecomputeUnitSpeedData(precomputeNow, useChebAsLUT, degree)
 	end
 end
 
