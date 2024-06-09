@@ -19,13 +19,10 @@ local function createUniformSplines(
 	local p10 = p1 - p0
 	local p21 = p2 - p1
 	local p32 = p3 - p2
-	local p20 = p2 - p0
-	local p31 = p3 - p1
 
 	local scalar = 1 - tension
-
-	local m1 = scalar * (p10 - p20 / 2 + p21)
-	local m2 = scalar * (p21 - p31 / 2 + p32)
+	local m1 = scalar * (p10 - (p2 - p0) / 2 + p21)
+	local m2 = scalar * (p21 - (p3 - p1) / 2 + p32)
 
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
@@ -39,14 +36,11 @@ local function createUniformSplines(
 		-- Slide window
 		p0, p1, p2, p3 = p1, p2, p3, positions[i]
 		q0, q1, q2, q3 = q1, q2, q3, quats[i]
-		p10, p21, p32 = p21, p32, p3 - p2
-		p20, p31 = p31, p3 - p1
+		p21, p32 = p32, p3 - p2
+		m1, m2 = m2, scalar * (p21 - (p3 - p1) / 2 + p32)
 		splineIndex += 1
 
 		-- Create spline
-		m1 = scalar * (p10 - p20 / 2 + p21)
-		m2 = scalar * (p21 - p31 / 2 + p32)
-
 		a = -2 * p21 + m1 + m2
 		b = 3 * p21 - 2 * m1 - m2
 		splines[splineIndex] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
@@ -74,46 +68,43 @@ local function createCentripetalSplines(
 	local p10Mag = math.sqrt(p10.Magnitude)
 	local p21Mag = math.sqrt(p21.Magnitude)
 	local p32Mag = math.sqrt(p32.Magnitude)
-	local p10MagP21Mag = p10Mag + p21Mag
-	local p21MagP32Mag = p21Mag + p32Mag
 
 	local p10Normalized = p10 / p10Mag
 	local p21Normalized = p21 / p21Mag
 	local p32Normalized = p32 / p32Mag
 
 	local coTension = 1 - tension
-	local scalar = coTension * p21Mag
-
-	local m1 = scalar * (p10Normalized - p20 / p10MagP21Mag + p21Normalized)
-	local m2 = scalar * (p21Normalized - p31 / p21MagP32Mag + p32Normalized)
+	local m1 = p10Normalized - p20 / (p10Mag + p21Mag) + p21Normalized
+	local m2 = p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
 
 	-- Create first spline
-	local a = -2 * p21 + m1 + m2
-	local b = 3 * p21 - 2 * m1 - m2
-	splines[1] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+	local scalar = coTension * p21Mag
+	local scaledM1 = scalar * m1
+	local scaledM2 = scalar * m2
+	local a = -2 * p21 + scaledM1 + scaledM2
+	local b = 3 * p21 - 2 * scaledM1 - scaledM2
+	splines[1] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 
 	for i = 5, #positions do
 		-- Slide window
-		p0, p1, p2, p3 = p1, p2, p3, positions[i]
+		p1, p2, p3 = p2, p3, positions[i]
 		q0, q1, q2, q3 = q1, q2, q3, quats[i]
-		p10, p21, p32 = p21, p32, p3 - p2
-		p20, p31 = p31, p3 - p1
-		p10Mag, p21Mag, p32Mag = p21Mag, p32Mag, math.sqrt(p32.Magnitude)
-		p10MagP21Mag, p21MagP32Mag = p21MagP32Mag, p21Mag + p32Mag
-		p10Normalized, p21Normalized, p32Normalized = p21Normalized, p32Normalized, p32 / p32Mag
+		p21, p32 = p32, p3 - p2
+		p31 = p3 - p1
+		p21Mag, p32Mag = p32Mag, math.sqrt(p32.Magnitude)
+		p21Normalized, p32Normalized = p32Normalized, p32 / p32Mag
+		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 		splineIndex += 1
 
 		-- Create spline
 		scalar = coTension * p21Mag
-		m1 = scalar * (p10Normalized - p20 / p10MagP21Mag + p21Normalized)
-		m2 = scalar * (p21Normalized - p31 / p21MagP32Mag + p32Normalized)
-
-		a = -2 * p21 + m1 + m2
-		b = 3 * p21 - 2 * m1 - m2
-		splines[splineIndex] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+		scaledM1, scaledM2 = scalar * m1, scalar * m2
+		a = -2 * p21 + scaledM1 + scaledM2
+		b = 3 * p21 - 2 * scaledM1 - scaledM2
+		splines[splineIndex] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 	end
 
 	return splines
@@ -138,46 +129,43 @@ local function createChordalSplines(
 	local p10Mag = p10.Magnitude
 	local p21Mag = p21.Magnitude
 	local p32Mag = p32.Magnitude
-	local p10MagP21Mag = p10Mag + p21Mag
-	local p21MagP32Mag = p21Mag + p32Mag
 
 	local p10Normalized = p10.Unit
 	local p21Normalized = p21.Unit
 	local p32Normalized = p32.Unit
 
 	local coTension = 1 - tension
-	local scalar = coTension * p21Mag
-
-	local m1 = scalar * (p10Normalized - p20 / p10MagP21Mag + p21Normalized)
-	local m2 = scalar * (p21Normalized - p31 / p21MagP32Mag + p32Normalized)
+	local m1 = p10Normalized - p20 / (p10Mag + p21Mag) + p21Normalized
+	local m2 = p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
 
 	-- Create first spline
-	local a = -2 * p21 + m1 + m2
-	local b = 3 * p21 - 2 * m1 - m2
-	splines[1] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+	local scalar = coTension * p21Mag
+	local scaledM1 = scalar * m1
+	local scaledM2 = scalar * m2
+	local a = -2 * p21 + scaledM1 + scaledM2
+	local b = 3 * p21 - 2 * scaledM1 - scaledM2
+	splines[1] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 
 	for i = 5, #positions do
 		-- Slide window
-		p0, p1, p2, p3 = p1, p2, p3, positions[i]
+		p1, p2, p3 = p2, p3, positions[i]
 		q0, q1, q2, q3 = q1, q2, q3, quats[i]
-		p10, p21, p32 = p21, p32, p3 - p2
-		p20, p31 = p31, p3 - p1
-		p10Mag, p21Mag, p32Mag = p21Mag, p32Mag, p32.Magnitude
-		p10MagP21Mag, p21MagP32Mag = p21MagP32Mag, p21Mag + p32Mag
-		p10Normalized, p21Normalized, p32Normalized = p21Normalized, p32Normalized, p32.Unit
+		p21, p32 = p32, p3 - p2
+		p31 = p3 - p1
+		p21Mag, p32Mag = p32Mag, p32.Magnitude
+		p21Normalized, p32Normalized = p32Normalized, p32.Unit
+		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 		splineIndex += 1
 
 		-- Create spline
 		scalar = coTension * p21Mag
-		m1 = scalar * (p10Normalized - p20 / p10MagP21Mag + p21Normalized)
-		m2 = scalar * (p21Normalized - p31 / p21MagP32Mag + p32Normalized)
-
-		a = -2 * p21 + m1 + m2
-		b = 3 * p21 - 2 * m1 - m2
-		splines[splineIndex] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+		scaledM1, scaledM2 = scalar * m1, scalar * m2
+		a = -2 * p21 + scaledM1 + scaledM2
+		b = 3 * p21 - 2 * scaledM1 - scaledM2
+		splines[splineIndex] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 	end
 
 	return splines
@@ -202,46 +190,43 @@ local function createSplines(
 	local p10Mag = p10.Magnitude ^ alpha
 	local p21Mag = p21.Magnitude ^ alpha
 	local p32Mag = p32.Magnitude ^ alpha
-	local p10MagP21Mag = p10Mag + p21Mag
-	local p21MagP32Mag = p21Mag + p32Mag
 
 	local p10Normalized = p10 / p10Mag
 	local p21Normalized = p21 / p21Mag
 	local p32Normalized = p32 / p32Mag
 
 	local coTension = 1 - tension
-	local scalar = coTension * p21Mag
-
-	local m1 = scalar * (p10Normalized - p20 / p10MagP21Mag + p21Normalized)
-	local m2 = scalar * (p21Normalized - p31 / p21MagP32Mag + p32Normalized)
+	local m1 = p10Normalized - p20 / (p10Mag + p21Mag) + p21Normalized
+	local m2 = p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
 
 	-- Create first spline
-	local a = -2 * p21 + m1 + m2
-	local b = 3 * p21 - 2 * m1 - m2
-	splines[1] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+	local scalar = coTension * p21Mag
+	local scaledM1 = scalar * m1
+	local scaledM2 = scalar * m2
+	local a = -2 * p21 + scaledM1 + scaledM2
+	local b = 3 * p21 - 2 * scaledM1 - scaledM2
+	splines[1] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 
 	for i = 5, #positions do
 		-- Slide window
-		p0, p1, p2, p3 = p1, p2, p3, positions[i]
+		p1, p2, p3 = p2, p3, positions[i]
 		q0, q1, q2, q3 = q1, q2, q3, quats[i]
-		p10, p21, p32 = p21, p32, p3 - p2
-		p20, p31 = p31, p3 - p1
-		p10Mag, p21Mag, p32Mag = p21Mag, p32Mag, p32.Magnitude ^ alpha
-		p10MagP21Mag, p21MagP32Mag = p21MagP32Mag, p21Mag + p32Mag
-		p10Normalized, p21Normalized, p32Normalized = p21Normalized, p32Normalized, p32 / p32Mag
+		p21, p32 = p32, p3 - p2
+		p31 = p3 - p1
+		p21Mag, p32Mag = p32Mag, p32.Magnitude ^ alpha
+		p21Normalized, p32Normalized = p32Normalized, p32 / p32Mag
+		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 		splineIndex += 1
 
 		-- Create spline
 		scalar = coTension * p21Mag
-		m1 = scalar * (p10Normalized - p20 / p10MagP21Mag + p21Normalized)
-		m2 = scalar * (p21Normalized - p31 / p21MagP32Mag + p32Normalized)
-
-		a = -2 * p21 + m1 + m2
-		b = 3 * p21 - 2 * m1 - m2
-		splines[splineIndex] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+		scaledM1, scaledM2 = scalar * m1, scalar * m2
+		a = -2 * p21 + scaledM1 + scaledM2
+		b = 3 * p21 - 2 * scaledM1 - scaledM2
+		splines[splineIndex] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 	end
 
 	return splines
@@ -311,7 +296,7 @@ function SplineFactory.CreateLineSpline(
 end
 
 function SplineFactory.CreateSplines(
-	points: Types.Point,
+	points: {Types.Point},
 	alpha: number,
 	tension: number,
 	loops: boolean,
@@ -350,6 +335,7 @@ function SplineFactory.CreateSplines(
 		end
 	else
 		table.move(points, 1, numPoints, 2, positions)
+		quats = {}
 	end
 
 	-- Create splines
