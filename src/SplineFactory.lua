@@ -110,67 +110,6 @@ local function createCentripetalSplines(
 	return splines
 end
 
--- Fast track for alpha = 1
-local function createChordalSplines(
-	positions: {Types.Vector},
-	quats: {Types.Quaternion},
-	tension: number,
-	pointType: Types.PointType
-): {Types.Spline}
-	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
-	local q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
-
-	local p10 = p1 - p0
-	local p21 = p2 - p1
-	local p32 = p3 - p2
-	local p20 = p2 - p0
-	local p31 = p3 - p1
-
-	local p10Mag = p10.Magnitude
-	local p21Mag = p21.Magnitude
-	local p32Mag = p32.Magnitude
-
-	local p10Normalized = p10.Unit
-	local p21Normalized = p21.Unit
-	local p32Normalized = p32.Unit
-
-	local coTension = 1 - tension
-	local m1 = p10Normalized - p20 / (p10Mag + p21Mag) + p21Normalized
-	local m2 = p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
-
-	local splines = table.create(#positions - 3)
-	local splineIndex = 1
-
-	-- Create first spline
-	local scalar = coTension * p21Mag
-	local scaledM1 = scalar * m1
-	local scaledM2 = scalar * m2
-	local a = -2 * p21 + scaledM1 + scaledM2
-	local b = 3 * p21 - 2 * scaledM1 - scaledM2
-	splines[1] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
-
-	for i = 5, #positions do
-		-- Slide window
-		p1, p2, p3 = p2, p3, positions[i]
-		q0, q1, q2, q3 = q1, q2, q3, quats[i]
-		p21, p32 = p32, p3 - p2
-		p31 = p3 - p1
-		p21Mag, p32Mag = p32Mag, p32.Magnitude
-		p21Normalized, p32Normalized = p32Normalized, p32.Unit
-		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
-		splineIndex += 1
-
-		-- Create spline
-		scalar = coTension * p21Mag
-		scaledM1, scaledM2 = scalar * m1, scalar * m2
-		a = -2 * p21 + scaledM1 + scaledM2
-		b = 3 * p21 - 2 * scaledM1 - scaledM2
-		splines[splineIndex] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
-	end
-
-	return splines
-end
-
 local function createSplines(
 	positions: {Types.Vector},
 	quats: {Types.Quaternion},
@@ -345,8 +284,6 @@ function SplineFactory.CreateSplines(
 		return createCentripetalSplines(positions, quats, tension, pointType)
 	elseif alpha == 0 then
 		return createUniformSplines(positions, quats, tension, pointType)
-	elseif alpha == 1 then
-		return createChordalSplines(positions, quats, tension, pointType)
 	else
 		return createSplines(positions, quats, alpha, tension, pointType)
 	end
