@@ -46,8 +46,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	local pointType = typeof(points[1])
 	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
 		"Points must be a table of Vector2s, Vector3s, or CFrames")
-	
-		for _, point in points do
+	for _, point in points do
 		assert(typeof(point) == pointType, "All points must have the same type")
 	end
 
