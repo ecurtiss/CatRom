@@ -1,3 +1,5 @@
+local Types = require(script.Parent.Types)
+
 local SOLVE_TOLERANCE = 1e-4
 local GET_SOLVE_BOUNDS_TOLERANCE = 1e-6
 local MAX_REGULA_FALSI_ITERATIONS = 10
@@ -9,7 +11,7 @@ local MAX_REGULA_FALSI_ITERATIONS = 10
 	Interpolates the arc length function of a spline using a Chebyshev polynomial.
 	Extracted from work by DarkInfernoDrago (https://github.com/rbxmath/rbxmath).
 ]=]
-local Chebyshev = {}
+local Chebyshev: Types.ChebyshevMt = {} :: Types.ChebyshevMt
 Chebyshev.__index = Chebyshev
 
 local transformedChebyshevGridCache = {}
@@ -86,8 +88,9 @@ function Chebyshev:Evaluate(x: number): number
 	return numerator / denominator
 end
 
---- Gets the two consecutive grid points whose values bound y
-function Chebyshev:GetSolveBounds(y: number)
+--- Gets the two consecutive grid points whose values bound y, as well as
+--- their values
+function Chebyshev:GetSolveBounds(y: number): (number, number, number, number)
 	local numGridPoints = #self.grid
 	local gridValues = self.gridValues
 	local leftGridValue = 0

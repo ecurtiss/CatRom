@@ -13,8 +13,8 @@
 local Chebyshev = require(script.Parent.Chebyshev)
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
-local Utils = require(script.Parent.Utils)
 local Types = require(script.Parent.Types)
+local Utils = require(script.Parent.Utils)
 
 local MAX_NEWTON_ITERATIONS = 16
 local EPSILON = 2e-7
@@ -25,7 +25,7 @@ local EPSILON = 2e-7
 
 	Catmull-Rom spline class
 ]=]
-local Spline = {}
+local Spline: Types.SplineMt = {} :: Types.SplineMt
 Spline.__index = Spline
 
 function Spline.new(
@@ -48,13 +48,11 @@ function Spline.new(
 		rmfLUT = nil,
 		type = pointType,
 
-		-- Coefficient vectors for position/velocity/acceleration/jerk polynomials
 		a = a,
 		b = b,
 		c = c,
 		d = d,
 
-		-- Rotations (nil if type is Vector2 or Vector3)
 		q0 = q0,
 		q1 = q1,
 		q2 = q2,
@@ -227,8 +225,8 @@ end
 
 --- Uses the double reflection method to precompute rotation-minimizing frames
 --- Source: Wang, "Computation of Rotation Minimizing Frames" (2008)
-function Spline:PrecomputeRotationMinimizingFrames(numFrames: number, initialFrame: CFrame)
-	local rmfLUT = table.create(numFrames + 1)
+function Spline:PrecomputeRotationMinimizingFrames(numFramesPerSpline: number, initialFrame: CFrame)
+	local rmfLUT = table.create(numFramesPerSpline + 1)
 	rmfLUT[1] = initialFrame
 
 	local prevPos = initialFrame.Position
@@ -236,8 +234,8 @@ function Spline:PrecomputeRotationMinimizingFrames(numFrames: number, initialFra
 	local prevUp = initialFrame.UpVector
 	local prevLook = initialFrame.LookVector
 
-	for i = 1, numFrames do
-		local t = i / numFrames
+	for i = 1, numFramesPerSpline do
+		local t = i / numFramesPerSpline
 		prevPos, prevRight, prevUp, prevLook, rmfLUT[i + 1] = doubleReflect(
 			prevPos,
 			prevRight,
@@ -290,9 +288,10 @@ end
 -- Numerical methods -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
-function Spline:SolveLength(a: number?, b: number?): number
-	a = a or 0
-	b = b or 1
+function Spline:SolveLength(from: number?, to: number?): number
+	local a = from or 0
+	local b = to or 1
+	a, b = math.min(a, b), math.max(a, b)
 
 	if a == 0 and b == 1 and self.length then
 		return self.length

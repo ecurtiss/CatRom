@@ -11,7 +11,7 @@ local EPSILON = 2e-7
 	@class CatRom
 	Manages chains of Catmull-Rom splines.
 ]=]
-local CatRom = {}
+local CatRom: Types.CatRomMt = {} :: Types.CatRomMt
 CatRom.__index = CatRom
 
 -- Removes adjacent points that are fuzzy-equal
@@ -132,7 +132,7 @@ end
 	  2. the time (t - a) / (b - a)
 	  3. the index j.
 ]=]
-function CatRom:GetSplineAtTime(t: number)
+function CatRom:GetSplineAtTime(t: number): (Types.Spline, number, number)
 	assert(t >= 0 and t <= 1, "Time must be in [0, 1]")
 
 	local splines = self.splines
@@ -221,7 +221,7 @@ function CatRom:SolveLength(from: number?, to: number?): number
 	return lengthA + intermediateLengths + lengthB
 end
 
-function CatRom:SolveBulk(f: ({}, number) -> any, numSamples: number, from: number?, to: number?, unitSpeed: boolean?)
+function CatRom:SolveBulk(f: (Types.Spline, number) -> (), numSamples: number, from: number?, to: number?, unitSpeed: boolean?)
 	local a = from or 0
 	local b = to or 1
 	assert(a <= b, "Time 'from' cannot be greater than time 'to'")
@@ -297,8 +297,8 @@ end
 -- Rotation-minimizing frames --------------------------------------------------
 --------------------------------------------------------------------------------
 
-function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?, firstSplineIndex: number?, lastSplineIndex: number?)
-	numFrames = if numFrames then math.max(1, numFrames) else DEFAULT_RMF_PRECOMPUTES
+function CatRom:PrecomputeRotationMinimizingFrames(numFramesPerSpline: number?, firstSplineIndex: number?, lastSplineIndex: number?)
+	numFramesPerSpline = if numFramesPerSpline then math.max(1, numFramesPerSpline) else DEFAULT_RMF_PRECOMPUTES
 	firstSplineIndex = firstSplineIndex or 1
 	lastSplineIndex = lastSplineIndex or #self.splines
 
@@ -306,20 +306,20 @@ function CatRom:PrecomputeRotationMinimizingFrames(numFrames: number?, firstSpli
 	if firstSplineIndex == 1 then
 		prevFrame = CFrame.lookAlong(self:SolvePosition(0), self:SolveTangent(0))
 	else
-		prevFrame = self.splines[firstSplineIndex - 1].rmfLUT[numFrames + 1]
+		prevFrame = self.splines[firstSplineIndex - 1].rmfLUT[numFramesPerSpline + 1]
 	end
 
 	for i = firstSplineIndex, lastSplineIndex do
 		local spline = self.splines[i]
-		spline:PrecomputeRotationMinimizingFrames(numFrames, prevFrame)
-		prevFrame = spline.rmfLUT[numFrames + 1]
+		spline:PrecomputeRotationMinimizingFrames(numFramesPerSpline, prevFrame)
+		prevFrame = spline.rmfLUT[numFramesPerSpline + 1]
 	end
 end
 
 --- If the user is tweening an RMF over time, then they can supply the RMF from
 --- the previous frame. Otherwise, we precompute a lookup table of RMFs for only
 --- the necessary splines.
-function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFrames: number?): CFrame
+function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSpline: number?): CFrame
 	local spline, splineTime, splineIndex = self:GetSplineAtTime(t)
 	local splines = self.splines
 
@@ -330,13 +330,13 @@ function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFram
 	-- Precompute only the necessary RMF LUTs
 	if spline.rmfLUT == nil then
 		if splines[1].rmfLUT == nil then
-			self:PrecomputeRotationMinimizingFrames(numFrames, 1, splineIndex)
+			self:PrecomputeRotationMinimizingFrames(numFramesPerSpline, 1, splineIndex)
 		else
 			local i = splineIndex - 1
 			while splines[i].rmfLUT == nil do
 				i -= 1
 			end
-			self:PrecomputeRotationMinimizingFrames(numFrames, i + 1, splineIndex)
+			self:PrecomputeRotationMinimizingFrames(numFramesPerSpline, i + 1, splineIndex)
 		end
 	end
 
