@@ -9,12 +9,11 @@ local Utils = require(script.Parent.Utils)
 -- Fast track for alpha = 0
 local function createUniformSplines(
 	positions: {Types.Vector},
-	quats: {Types.Quaternion},
 	tension: number,
-	pointType: Types.PointType
+	pointType: Types.PointType,
+	quats: {Types.Quaternion}?
 ): {Types.Spline}
 	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
-	local q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 
 	local p10 = p1 - p0
 	local p21 = p2 - p1
@@ -23,6 +22,11 @@ local function createUniformSplines(
 	local scalar = 1 - tension
 	local m1 = scalar * (p10 - (p2 - p0) / 2 + p21)
 	local m2 = scalar * (p21 - (p3 - p1) / 2 + p32)
+
+	local q0, q1, q2, q3
+	if quats then
+		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
+	end
 
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
@@ -35,9 +39,13 @@ local function createUniformSplines(
 	for i = 5, #positions do
 		-- Slide window
 		p0, p1, p2, p3 = p1, p2, p3, positions[i]
-		q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		p21, p32 = p32, p3 - p2
 		m1, m2 = m2, scalar * (p21 - (p3 - p1) / 2 + p32)
+
+		if quats then
+			q0, q1, q2, q3 = q1, q2, q3, quats[i]
+		end
+
 		splineIndex += 1
 
 		-- Create spline
@@ -52,12 +60,11 @@ end
 -- Fast track for alpha = 0.5
 local function createCentripetalSplines(
 	positions: {Types.Vector},
-	quats: {Types.Quaternion},
-	tension: number, pointType:
-	Types.PointType
+	tension: number,
+	pointType: Types.PointType,
+	quats: {Types.Quaternion}?
 ): {Types.Spline}
 	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
-	local q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 
 	local p10 = p1 - p0
 	local p21 = p2 - p1
@@ -77,6 +84,11 @@ local function createCentripetalSplines(
 	local m1 = p10Normalized - p20 / (p10Mag + p21Mag) + p21Normalized
 	local m2 = p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
+	local q0, q1, q2, q3
+	if quats then
+		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
+	end
+
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
 
@@ -91,12 +103,16 @@ local function createCentripetalSplines(
 	for i = 5, #positions do
 		-- Slide window
 		p1, p2, p3 = p2, p3, positions[i]
-		q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		p21, p32 = p32, p3 - p2
 		p31 = p3 - p1
 		p21Mag, p32Mag = p32Mag, math.sqrt(p32.Magnitude)
 		p21Normalized, p32Normalized = p32Normalized, p32 / p32Mag
 		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
+
+		if quats then
+			q0, q1, q2, q3 = q1, q2, q3, quats[i]
+		end
+
 		splineIndex += 1
 
 		-- Create spline
@@ -112,13 +128,12 @@ end
 
 local function createSplines(
 	positions: {Types.Vector},
-	quats: {Types.Quaternion},
 	alpha: number,
 	tension: number,
-	pointType: Types.PointType
+	pointType: Types.PointType,
+	quats: {Types.Quaternion}?
 ): {Types.Spline}
 	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
-	local q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 
 	local p10 = p1 - p0
 	local p21 = p2 - p1
@@ -138,6 +153,11 @@ local function createSplines(
 	local m1 = p10Normalized - p20 / (p10Mag + p21Mag) + p21Normalized
 	local m2 = p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
+	local q0, q1, q2, q3
+	if quats then
+		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
+	end
+
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
 
@@ -152,12 +172,16 @@ local function createSplines(
 	for i = 5, #positions do
 		-- Slide window
 		p1, p2, p3 = p2, p3, positions[i]
-		q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		p21, p32 = p32, p3 - p2
 		p31 = p3 - p1
 		p21Mag, p32Mag = p32Mag, p32.Magnitude ^ alpha
 		p21Normalized, p32Normalized = p32Normalized, p32 / p32Mag
 		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
+
+		if quats then
+			q0, q1, q2, q3 = q1, q2, q3, quats[i]
+		end
+
 		splineIndex += 1
 
 		-- Create spline
@@ -174,11 +198,15 @@ end
 -- Fast track for tension = 1
 local function createTautSplines(
 	positions: {Types.Point},
-	quats: {Types.Quaternion},
-	pointType: Types.PointType
+	pointType: Types.PointType,
+	quats: {Types.Quaternion}?
 ): {Types.Spline}
 	local p1, p2 = positions[2], positions[3]
-	local q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
+
+	local q0, q1, q2, q3
+	if quats then
+		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
+	end
 
 	local splines = table.create(#positions - 3)
 	local splineIndex = 1
@@ -193,7 +221,11 @@ local function createTautSplines(
 	for i = 4, #positions - 1 do
 		-- Slide window
 		p1, p2 = p2, positions[i]
-		q0, q1, q2, q3 = q1, q2, q3, quats[i]
+
+		if quats then
+			q0, q1, q2, q3 = q1, q2, q3, quats[i]
+		end
+
 		splineIndex += 1
 
 		-- Create spline
@@ -274,18 +306,17 @@ function SplineFactory.CreateSplines(
 		end
 	else
 		table.move(points, 1, numPoints, 2, positions)
-		quats = {}
 	end
 
 	-- Create splines
 	if tension == 1 then
-		return createTautSplines(positions, quats, pointType)
+		return createTautSplines(positions, pointType, quats)
 	elseif alpha == 0.5 then
-		return createCentripetalSplines(positions, quats, tension, pointType)
+		return createCentripetalSplines(positions, tension, pointType, quats)
 	elseif alpha == 0 then
-		return createUniformSplines(positions, quats, tension, pointType)
+		return createUniformSplines(positions, tension, pointType, quats)
 	else
-		return createSplines(positions, quats, alpha, tension, pointType)
+		return createSplines(positions, alpha, tension, pointType, quats)
 	end
 end
 
