@@ -98,10 +98,10 @@ export type Spline = typeof(setmetatable(
 		d: Vector,
 
 		-- Rotations (nil if type is Vector2 or Vector3)
-		q0: Quaternion,
-		q1: Quaternion,
-		q2: Quaternion,
-		q3: Quaternion,
+		q0: Quaternion?,
+		q1: Quaternion?,
+		q2: Quaternion?,
+		q3: Quaternion?,
 	},
 	{} :: SplineMt
 ))
@@ -126,7 +126,7 @@ export type SplineMt = {
 	SolvePosition:     (self: Spline, t: number) -> Vector,
 	SolveVelocity:     (self: Spline, t: number) -> Vector,
 	SolveAcceleration: (self: Spline, t: number) -> Vector,
-	SolveJerk:         (self: Spline, t: number) -> Vector,
+	SolveJerk:         (self: Spline) -> Vector,
 	SolveTangent:      (self: Spline, t: number) -> Vector,
 	SolveNormal:       (self: Spline, t: number) -> Vector,
 	SolveBinormal:     (self: Spline, t: number) -> Vector3,
