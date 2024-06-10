@@ -27,14 +27,12 @@ CatRom.__index = CatRom
 
 --- @prop points {Point}
 --- @within CatRom
---- @private
 --- The control points of the spline. This table will not necessarily match the
 --- table of control points passed into the constructor, as adjacent points
 --- that are fuzzy-equal are removed during construction.
 
 --- @prop splines {Spline}
 --- @within CatRom
---- @private
 --- The individual interpolants chained together to build the full spline.
 
 -- Removes adjacent points that are fuzzy-equal
@@ -58,15 +56,16 @@ end
 --[=[
 	Instantiates a Catmull-Rom spline.
 
-	@param points {Vector2 | Vector3 | CFrame} -- A list of points of the same type
+	@param points {Vector2} | {Vector3} | {CFrame} -- A list of points of the same type
 	@param alpha -- A number (usually in [0, 1]) that loosely affects the curvature of the spline at the control points (default: 0.5)
 	@param tension -- A number (usually in [0, 1]) that changes how taut the spline is (1 gives straight lines) (default: 0)
 	@param loops -- Whether the spline should form a smooth, closed loop
+	@return CatRom
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loops: boolean?)
+function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loops: boolean?): Types.CatRom
 	alpha = alpha or DEFAULT_ALPHA -- Parametrization exponent
 	tension = tension or DEFAULT_TENSION
 	loops = not not loops
@@ -141,7 +140,7 @@ end
 	Returns the position at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
@@ -157,7 +156,7 @@ end
 	Returns the velocity at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
@@ -173,7 +172,7 @@ end
 	Returns the acceleration at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
@@ -189,7 +188,7 @@ end
 	Returns the jerk at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
@@ -205,7 +204,7 @@ end
 	Returns the unit tangent vector at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
@@ -221,7 +220,7 @@ end
 	Returns the unit normal vector of the Frenet frame at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
@@ -237,7 +236,7 @@ end
 	Returns the unit binormal vector of the Frenet frame at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector3
 	@tag Vector3
 	@tag CFrame
@@ -252,7 +251,7 @@ end
 	Returns the curvature at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -267,7 +266,7 @@ end
 	Returns the torsion at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector3
 	@tag CFrame
 	@tag Essentials
@@ -282,7 +281,7 @@ end
 	with the goal up vector `upVector`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@param upVector -- The goal up vector (default: `Vector3.yAxis`)
 	@tag Vector3
 	@tag CFrame
@@ -301,7 +300,7 @@ end
 	is small.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector3
 	@tag CFrame
 	@tag Moving frames
@@ -316,7 +315,7 @@ end
 	the control points using spherical quadrangle interpolation (SQUAD).
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag CFrame
 	@tag Moving frames
 ]=]
@@ -342,7 +341,7 @@ end
 
 	@error Bad input -- prevFrame too close to queried frame
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@param prevFrame -- A previous, nearby RMF
 	@param numFramesPerSpline -- The number of discrete approximations to pass to [CatRom:PrecomputeRMFs] if necessary (default: 4)
 	@tag Vector3
@@ -381,13 +380,18 @@ end
 	@param data -- The data to sweep
 	@param from -- The time to start at
 	@param to -- The time to end at
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return (number) -> Vector3 | CFrame -- A function that returns the transported data at a given time
 	@tag Vector3
 	@tag CFrame
 	@tag Moving frames
 ]=]
-function CatRom:GetParallelTransportInterpolant(data: Vector3 | CFrame, from: number?, to: number?, unitSpeed: boolean?): (number) -> Vector3 | CFrame
+function CatRom:GetParallelTransportInterpolant(
+	data: Vector3 | CFrame,
+	from: number?,
+	to: number?,
+	unitSpeed: boolean?
+): (t: number) -> Vector3 | CFrame
 	from = from or 0
 	to = to or 1
 	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
@@ -424,7 +428,13 @@ end
 	@tag CFrame
 	@tag Moving frames
 ]=]
-function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to: number, toVector: Vector3, unitSpeed: boolean?): (number) -> Vector3
+function CatRom:GetNormalVectorInterpolant(
+	from: number,
+	fromVector: Vector3,
+	to: number,
+	toVector: Vector3,
+	unitSpeed: boolean?
+): (t: number) -> Vector3
 	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
 
 	local totalTime = to - from
@@ -463,8 +473,8 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 end
 
 --[=[
-	Computes a discrete approximation of a rotation-minimizing frame (RMF) along
-	the spline. Must be called before using [CatRom:SolveCFrameRMF].
+	Precomputes a discrete approximation of a rotation-minimizing frame (RMF) along
+	the spline.
 
 	@param numFramesPerSpline -- The number of discrete approximations in each interpolant (default: 4)
 	@param firstSplineIndex -- The index of the first interpolant to compute RMFs on (default: 1)
@@ -654,15 +664,21 @@ end
 	@param numSamples -- The number of uniformly-spaced samples (includes the two samples at the boundaries)
 	@param from -- The time to start at (default: 0)
 	@param to -- The time to end at (default: 1)
-	@param unitSpeed -- Whether the spline has unit speed
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom:SolveBulk(f: (Types.Spline, number) -> (), numSamples: number, from: number?, to: number?, unitSpeed: boolean?)
+function CatRom:SolveBulk(
+	f: (spline: Types.Spline, t: number) -> (),
+	numSamples: number,
+	from: number?,
+	to: number?,
+	unitSpeed: boolean?
+)
 	local a = from or 0
 	local b = to or 1
-	assert(a <= b, "Time 'from' cannot be greater than time 'to'")
+	assert(a <= b, "Time \"from\" cannot be greater than time \"to\"")
 	assert(a >= 0 and b <= 1, "Times must be in [0, 1]")
 	assert(type(numSamples) == "number", "Bad numSamples")
 	

@@ -29,7 +29,7 @@ export type CatRomMt = {
 	SolveLength: (self: CatRom, from: number?, to: number?) -> number,
 	SolveBulk: (
 		self: CatRom,
-		f: (Spline, number) -> (),
+		f: (spline: Spline, t: number) -> (),
 		numSamples: number,
 		from: number?,
 		to: number?,
@@ -65,7 +65,7 @@ export type CatRomMt = {
 		from: number?,
 		to: number?,
 		unitSpeed: boolean?
-	) -> (number) -> Vector3 | CFrame,
+	) -> (t: number) -> Vector3 | CFrame,
 	GetNormalVectorInterpolant: (
 		self: CatRom,
 		from: number,
@@ -73,7 +73,7 @@ export type CatRomMt = {
 		to: number,
 		toVector: Vector3,
 		unitSpeed: boolean?
-	) -> (number) -> Vector3,
+	) -> (t: number) -> Vector3,
 
 	-- Proxy methods
 	SolvePosition:         (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
