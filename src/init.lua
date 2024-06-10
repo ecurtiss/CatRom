@@ -43,7 +43,7 @@ local function getUniquePoints(points: {Types.Point}): {Types.Point}
 
 	for j = 2, #points do
 		local point = points[j]
-		if not point:FuzzyEq(prevPoint) then
+		if not point:FuzzyEq(prevPoint, EPSILON) then
 			uniquePoints[i] = point
 			i += 1
 			prevPoint = point
@@ -86,7 +86,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	-- Get points
 	points = getUniquePoints(points)
 
-	if loops and not points[1]:FuzzyEq(points[#points]) then
+	if loops and not points[1]:FuzzyEq(points[#points], EPSILON) then
 		table.insert(points, points[1])
 	end
 
