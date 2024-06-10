@@ -8,8 +8,9 @@ local MAX_REGULA_FALSI_ITERATIONS = 10
 	@class Chebyshev
 	@ignore
 	
-	Interpolates the arc length function of a spline using a Chebyshev polynomial.
-	Extracted from work by DarkInfernoDrago (https://github.com/rbxmath/rbxmath).
+	Interpolates the arc length function of a spline using a Chebyshev
+	polynomial. Extracted from work by DarkInfernoDrago
+	(https://github.com/rbxmath/rbxmath).
 ]=]
 local Chebyshev: Types.ChebyshevMt = {} :: Types.ChebyshevMt
 Chebyshev.__index = Chebyshev
@@ -88,7 +89,7 @@ function Chebyshev:Evaluate(x: number): number
 	return numerator / denominator
 end
 
---- Gets the two consecutive grid points whose values bound y, as well as
+--- Returns the two consecutive grid points whose values bound y, as well as
 --- their values
 function Chebyshev:GetSolveBounds(y: number): (number, number, number, number)
 	local numGridPoints = #self.grid
@@ -153,7 +154,7 @@ function Chebyshev:Solve(y: number): number
 	return (leftBound + rightBound) / 2
 end
 
---- Inverts the Chebyshev polynomial by sampling the grid points on its inverse
+--- Inverts the Chebyshev polynomial by sampling the grid points on its inverse.
 function Chebyshev:Invert()
 	local grid = self.grid
 	local numGridPoints = #grid

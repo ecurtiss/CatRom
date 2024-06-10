@@ -21,9 +21,9 @@ local EPSILON = 2e-7
 
 --[=[
 	@class Spline
-	@ignore
 
-	Catmull-Rom spline class
+	A single segment of a Catmull-Rom spline that interpolates two control
+	points. [CatRom:SolveBulk] is the only method that exposes a [Spline].
 ]=]
 local Spline: Types.SplineMt = {} :: Types.SplineMt
 Spline.__index = Spline
