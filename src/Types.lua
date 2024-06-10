@@ -44,7 +44,7 @@ export type CatRomMt = {
 		firstSplineIndex: number?,
 		lastSplineIndex: number?
 	) -> (),
-	SolveCFrame_RMF: (
+	SolveCFrameRMF: (
 		self: CatRom,
 		t: number,
 		unitSpeed: boolean?,
@@ -77,9 +77,9 @@ export type CatRomMt = {
 	SolveBinormal:         (self: CatRom, t: number, unitSpeed: boolean?) -> Vector3,
 	SolveCurvature:        (self: CatRom, t: number, unitSpeed: boolean?) -> number,
 	SolveTorsion:          (self: CatRom, t: number, unitSpeed: boolean?) -> number,
-	SolveCFrame_LookAlong: (self: CatRom, t: number, unitSpeed: boolean?, upVector: Vector3?) -> CFrame,
-	SolveCFrame_Frenet:    (self: CatRom, t: number, unitSpeed: boolean?) -> CFrame,
-	SolveCFrame_Squad:     (self: CatRom, t: number, unitSpeed: boolean?) -> CFrame,
+	SolveCFrameLookAlong:  (self: CatRom, t: number, unitSpeed: boolean?, upVector: Vector3?) -> CFrame,
+	SolveCFrameFrenet:     (self: CatRom, t: number, unitSpeed: boolean?) -> CFrame,
+	SolveCFrameSquad:      (self: CatRom, t: number, unitSpeed: boolean?) -> CFrame,
 }
 
 export type Spline = typeof(setmetatable(
@@ -134,10 +134,10 @@ export type SplineMt = {
 	SolveTorsion:      (self: Spline, t: number) -> number,
 
 	-- Moving frame methods
-	SolveCFrame_LookAlong: (self: Spline, t: number, upVector: Vector3?) -> CFrame,
-	SolveCFrame_Frenet:    (self: Spline, t: number) -> CFrame,
-	SolveCFrame_Squad:     (self: Spline, t: number) -> CFrame,
-	SolveCFrame_RMF:       (self: Spline, t: number, prevFrame: CFrame?) -> CFrame,
+	SolveCFrameLookAlong: (self: Spline, t: number, upVector: Vector3?) -> CFrame,
+	SolveCFrameFrenet:    (self: Spline, t: number) -> CFrame,
+	SolveCFrameSquad:     (self: Spline, t: number) -> CFrame,
+	SolveCFrameRMF:       (self: Spline, t: number, prevFrame: CFrame?) -> CFrame,
 	PrecomputeRotationMinimizingFrames: (
 		self: Spline,
 		numFramesPerSpline: number,

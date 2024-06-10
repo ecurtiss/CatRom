@@ -157,8 +157,8 @@ local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): C
 	end
 end
 
-function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrame_LookAlong is undefined on Vector2 splines")
+function Spline:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
+	assert(self.type ~= "Vector2", "SolveCFrameLookAlong is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveVelocity(t)
@@ -169,10 +169,9 @@ function Spline:SolveCFrame_LookAlong(t: number, upVector: Vector3?): CFrame
 		return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
 	end
 end
---- Returns a CFrame with the LookVector, UpVector, and RightVector being the
---- tangent, normal, and binormal vectors respectively.
-function Spline:SolveCFrame_Frenet(t: number): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrame_Frenet is undefined on Vector2 splines")
+
+function Spline:SolveCFrameFrenet(t: number): CFrame
+	assert(self.type ~= "Vector2", "SolveCFrameFrenet is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveTangent(t)
@@ -186,8 +185,8 @@ function Spline:SolveCFrame_Frenet(t: number): CFrame
 	end
 end
 
-function Spline:SolveCFrame_Squad(t: number): CFrame
-	assert(self.type == "CFrame", "SolveCFrame_Squad is only defined on CFrame splines")
+function Spline:SolveCFrameSquad(t: number): CFrame
+	assert(self.type == "CFrame", "SolveCFrameSquad is only defined on CFrame splines")
 
 	local pos = self:SolvePosition(t)
 	local q0 = self.q0
@@ -248,9 +247,9 @@ function Spline:PrecomputeRotationMinimizingFrames(numFramesPerSpline: number, i
 	self.rmfLUT = rmfLUT
 end
 
-function Spline:SolveCFrame_RMF(t: number, prevFrame: CFrame?): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrame_RMF is undefined on Vector2 splines")
-	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRotationMinimizingFrames before using SolveCFrame_RMF")
+function Spline:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
+	assert(self.type ~= "Vector2", "SolveCFrameRMF is undefined on Vector2 splines")
+	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRotationMinimizingFrames before using SolveCFrameRMF")
 
 	if not prevFrame then
 		local prevFrameIndex = math.floor(t * (#self.rmfLUT - 1)) + 1

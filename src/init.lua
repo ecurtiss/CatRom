@@ -385,7 +385,7 @@ end
 
 --[=[
 	Computes a discrete approximation of a rotation-minimizing frame (RMF) along
-	the spline. Must be called before using [CatRom:SolveCFrame_RMF].
+	the spline. Must be called before using [CatRom:SolveCFrameRMF].
 
 	@param numFramesPerSpline -- The number of discrete approximations in each interpolant (default: 4)
 	@param firstSplineIndex -- The index of the first interpolant to compute RMFs on (default: 1)
@@ -431,12 +431,12 @@ end
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSpline: number?): CFrame
+function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSpline: number?): CFrame
 	local spline, splineTime, splineIndex = self:GetSplineAtTime(t)
 	local splines = self.splines
 
 	if prevFrame then
-		return spline:SolveCFrame_RMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+		return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
 	end
 
 	-- Precompute only the necessary RMF LUTs
@@ -452,7 +452,7 @@ function CatRom:SolveCFrame_RMF(t: number, unitSpeed: boolean?, prevFrame: CFram
 		end
 	end
 
-	return spline:SolveCFrame_RMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+	return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
 end
 
 --[=[
@@ -477,18 +477,18 @@ function CatRom:GetParallelTransportInterpolant(data: Vector3 | CFrame, from: nu
 	local dataIsVector3 = dataType == "Vector3"
 	assert(dataIsVector3 or dataType == "CFrame", "Bad data: Can only parallel transport Vector3s and CFrames")
 
-	local initialFrame = self:SolveCFrame_RMF(from, unitSpeed)
+	local initialFrame = self:SolveCFrameRMF(from, unitSpeed)
 	local totalTime = to - from
 
 	if dataIsVector3 then
 		local localVector = initialFrame:VectorToObjectSpace(data)
 		return function(t: number): Vector3
-			return self:SolveCFrame_RMF((t - from) / totalTime, unitSpeed):VectorToWorldSpace(localVector)
+			return self:SolveCFrameRMF((t - from) / totalTime, unitSpeed):VectorToWorldSpace(localVector)
 		end
 	else
 		local localCFrame = initialFrame:Inverse() * data
 		return function(t: number): CFrame
-			return self:SolveCFrame_RMF((t - from) / totalTime, unitSpeed) * localCFrame
+			return self:SolveCFrameRMF((t - from) / totalTime, unitSpeed) * localCFrame
 		end
 	end
 end
@@ -509,7 +509,7 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 
 	local totalTime = to - from
 
-	local frameA = self:SolveCFrame_RMF(from, unitSpeed)
+	local frameA = self:SolveCFrameRMF(from, unitSpeed)
 	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
 	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
 
@@ -519,7 +519,7 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 		error("fromVector cannot be tangent to the curve")
 	end
 
-	local frameB = self:SolveCFrame_RMF(to, unitSpeed)
+	local frameB = self:SolveCFrameRMF(to, unitSpeed)
 	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
 	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
 
@@ -535,7 +535,7 @@ function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to
 	end
 
 	return function(t: number): Vector3
-		local frameT = self:SolveCFrame_RMF(from + t * totalTime, unitSpeed)
+		local frameT = self:SolveCFrameRMF(from + t * totalTime, unitSpeed)
 		local angleT = angleA + t * delta
 		local normalT = math.cos(angleT) * frameT.RightVector + math.sin(angleT) * frameT.UpVector
 		return normalT
@@ -687,9 +687,9 @@ end
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom:SolveCFrame_LookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
+function CatRom:SolveCFrameLookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame_LookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
+	return spline:SolveCFrameLookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
 end
 
 --[=[
@@ -704,9 +704,9 @@ end
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom:SolveCFrame_Frenet(t: number, unitSpeed: boolean?): CFrame
+function CatRom:SolveCFrameFrenet(t: number, unitSpeed: boolean?): CFrame
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame_Frenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	return spline:SolveCFrameFrenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 --[=[
@@ -717,9 +717,9 @@ end
 	@param unitSpeed -- Whether the spline has unit speed
 	@tag CFrame
 ]=]
-function CatRom:SolveCFrame_Squad(t: number, unitSpeed: boolean?): CFrame
+function CatRom:SolveCFrameSquad(t: number, unitSpeed: boolean?): CFrame
 	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrame_Squad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	return spline:SolveCFrameSquad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 return CatRom
