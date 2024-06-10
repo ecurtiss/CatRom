@@ -222,9 +222,9 @@ local function doubleReflect(
 	return pos, right, up, look, CFrame.fromMatrix(pos, right, up, -look)
 end
 
---- Uses the double reflection method to precompute rotation-minimizing frames
---- Source: Wang, "Computation of Rotation Minimizing Frames" (2008)
-function Spline:PrecomputeRotationMinimizingFrames(numFramesPerSpline: number, initialFrame: CFrame)
+-- Uses the double reflection method to precompute rotation-minimizing frames
+-- Source: Wang, "Computation of Rotation Minimizing Frames" (2008)
+function Spline:PrecomputeRMFs(numFramesPerSpline: number, initialFrame: CFrame)
 	local rmfLUT = table.create(numFramesPerSpline + 1)
 	rmfLUT[1] = initialFrame
 
@@ -249,7 +249,7 @@ end
 
 function Spline:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameRMF is undefined on Vector2 splines")
-	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRotationMinimizingFrames before using SolveCFrameRMF")
+	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRMFs before using SolveCFrameRMF")
 
 	if not prevFrame then
 		local prevFrameIndex = math.floor(t * (#self.rmfLUT - 1)) + 1

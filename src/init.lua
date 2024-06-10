@@ -393,7 +393,7 @@ end
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom:PrecomputeRotationMinimizingFrames(numFramesPerSpline: number?, firstSplineIndex: number?, lastSplineIndex: number?)
+function CatRom:PrecomputeRMFs(numFramesPerSpline: number?, firstSplineIndex: number?, lastSplineIndex: number?)
 	numFramesPerSpline = if numFramesPerSpline then math.max(1, numFramesPerSpline) else DEFAULT_RMF_PRECOMPUTES
 	firstSplineIndex = firstSplineIndex or 1
 	lastSplineIndex = lastSplineIndex or #self.splines
@@ -407,7 +407,7 @@ function CatRom:PrecomputeRotationMinimizingFrames(numFramesPerSpline: number?, 
 
 	for i = firstSplineIndex, lastSplineIndex do
 		local spline = self.splines[i]
-		spline:PrecomputeRotationMinimizingFrames(numFramesPerSpline, prevFrame)
+		spline:PrecomputeRMFs(numFramesPerSpline, prevFrame)
 		prevFrame = spline.rmfLUT[numFramesPerSpline + 1]
 	end
 end
@@ -418,16 +418,16 @@ end
 
 	If you are tweening an RMF over time, then you can supply the RMF from the
 	previous frame for a better approximation. This also avoids calling
-	[CatRom:PrecomputeRotationMinimizingFrames], which helps performance. Otherwise, if you do not
-	supply a previous frame and you have not yet called [CatRom:PrecomputeRotationMinimizingFrames],
-	then [CatRom:PrecomputeRotationMinimizingFrames] will be called for only the necessary
+	[CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you do not
+	supply a previous frame and you have not yet called [CatRom:PrecomputeRMFs],
+	then [CatRom:PrecomputeRMFs] will be called for only the necessary
 	interpolants.
 
 	@error Bad input -- prevFrame too close to queried frame
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed
 	@param prevFrame -- A previous, nearby RMF
-	@param numFramesPerSpline -- The number of discrete approximations to pass to [CatRom:PrecomputeRotationMinimizingFrames] if necessary (default: 4)
+	@param numFramesPerSpline -- The number of discrete approximations to pass to [CatRom:PrecomputeRMFs] if necessary (default: 4)
 	@tag Vector3
 	@tag CFrame
 ]=]
@@ -442,13 +442,13 @@ function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame
 	-- Precompute only the necessary RMF LUTs
 	if spline.rmfLUT == nil then
 		if splines[1].rmfLUT == nil then
-			self:PrecomputeRotationMinimizingFrames(numFramesPerSpline, 1, splineIndex)
+			self:PrecomputeRMFs(numFramesPerSpline, 1, splineIndex)
 		else
 			local i = splineIndex - 1
 			while splines[i].rmfLUT == nil do
 				i -= 1
 			end
-			self:PrecomputeRotationMinimizingFrames(numFramesPerSpline, i + 1, splineIndex)
+			self:PrecomputeRMFs(numFramesPerSpline, i + 1, splineIndex)
 		end
 	end
 
@@ -458,7 +458,7 @@ end
 --[=[
 	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
 	minimal torsion. Requires calling
-	[CatRom:PrecomputeRotationMinimizingFrames] first.
+	[CatRom:PrecomputeRMFs] first.
 
 	@param data -- The data to sweep
 	@param from -- The time to start at

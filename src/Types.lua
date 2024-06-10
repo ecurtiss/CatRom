@@ -38,7 +38,7 @@ export type CatRomMt = {
 	SolveBoundingBox: (self: CatRom) -> (Vector, Vector),
 
 	-- Rotation-minimzing frame methods
-	PrecomputeRotationMinimizingFrames: (
+	PrecomputeRMFs: (
 		self: CatRom,
 		numFramesPerSpline: number?,
 		firstSplineIndex: number?,
@@ -138,7 +138,7 @@ export type SplineMt = {
 	SolveCFrameFrenet:    (self: Spline, t: number) -> CFrame,
 	SolveCFrameSquad:     (self: Spline, t: number) -> CFrame,
 	SolveCFrameRMF:       (self: Spline, t: number, prevFrame: CFrame?) -> CFrame,
-	PrecomputeRotationMinimizingFrames: (
+	PrecomputeRMFs: (
 		self: Spline,
 		numFramesPerSpline: number,
 		initialFrame: CFrame
