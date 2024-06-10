@@ -133,6 +133,365 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 end
 
 --------------------------------------------------------------------------------
+-- Proxy methods ---------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--[=[
+	Returns the position at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the velocity at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveVelocity(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveVelocity(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the acceleration at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the jerk at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveJerk(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveJerk(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the unit tangent vector at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the unit normal vector of the Frenet frame at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveNormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the unit binormal vector of the Frenet frame at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@return Vector3
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveBinormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the curvature at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveCurvature(t: number, unitSpeed: boolean?): number
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns the torsion at time `t`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@tag Vector3
+	@tag CFrame
+	@tag Essentials
+]=]
+function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns a CFrame at time `t` looking along the tangent vector of the spline
+	with the goal up vector `upVector`.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@param upVector -- The goal up vector (default: `Vector3.yAxis`)
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:SolveCFrameLookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrameLookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
+end
+
+--[=[
+	Returns a CFrame at time `t` with LookVector, UpVector, and RightVector
+	being the unit tangent, normal, and binormal vectors of the Frenet frame
+	respectively. Note that if the curvature is 0 at `t`, then you will get
+	NaNs in the CFrame. This frame is also prone to sudden twists when curvature
+	is small.
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:SolveCFrameFrenet(t: number, unitSpeed: boolean?): CFrame
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrameFrenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--[=[
+	Returns a CFrame at time `t` that smoothly interpolates the orientations of
+	the control points using spherical quadrangle interpolation (SQUAD).
+
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:SolveCFrameSquad(t: number, unitSpeed: boolean?): CFrame
+	local spline, splineTime = self:GetSplineAtTime(t)
+	return spline:SolveCFrameSquad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+end
+
+--------------------------------------------------------------------------------
+-- Rotation-minimizing frames --------------------------------------------------
+--------------------------------------------------------------------------------
+
+--[=[
+	Returns an approximate rotation-minimizing frame (RMF), i.e., a CFrame that
+	has minimal torsion when swept along the spline.
+
+	If you are tweening an RMF over time, then you can supply the RMF from the
+	previous frame for a better approximation. This also avoids calling
+	[CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you do not
+	supply a previous frame and you have not yet called [CatRom:PrecomputeRMFs],
+	then [CatRom:PrecomputeRMFs] will be called for only the necessary
+	interpolants.
+
+	@error Bad input -- prevFrame too close to queried frame
+	@param t -- Time
+	@param unitSpeed -- Whether the spline has unit speed
+	@param prevFrame -- A previous, nearby RMF
+	@param numFramesPerSpline -- The number of discrete approximations to pass to [CatRom:PrecomputeRMFs] if necessary (default: 4)
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSpline: number?): CFrame
+	local spline, splineTime, splineIndex = self:GetSplineAtTime(t)
+	local splines = self.splines
+
+	if prevFrame then
+		return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+	end
+
+	-- Precompute only the necessary RMF LUTs
+	if spline.rmfLUT == nil then
+		if splines[1].rmfLUT == nil then
+			self:PrecomputeRMFs(numFramesPerSpline, 1, splineIndex)
+		else
+			local i = splineIndex - 1
+			while splines[i].rmfLUT == nil do
+				i -= 1
+			end
+			self:PrecomputeRMFs(numFramesPerSpline, i + 1, splineIndex)
+		end
+	end
+
+	return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+end
+
+--[=[
+	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
+	minimal torsion. Requires calling
+	[CatRom:PrecomputeRMFs] first.
+
+	@param data -- The data to sweep
+	@param from -- The time to start at
+	@param to -- The time to end at
+	@param unitSpeed -- Whether the spline has unit speed
+	@return (number) -> Vector3 | CFrame -- A function that returns the transported data at a given time
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:GetParallelTransportInterpolant(data: Vector3 | CFrame, from: number?, to: number?, unitSpeed: boolean?): (number) -> Vector3 | CFrame
+	from = from or 0
+	to = to or 1
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+	
+	local dataType = typeof(data)
+	local dataIsVector3 = dataType == "Vector3"
+	assert(dataIsVector3 or dataType == "CFrame", "Bad data: Can only parallel transport Vector3s and CFrames")
+
+	local initialFrame = self:SolveCFrameRMF(from, unitSpeed)
+	local totalTime = to - from
+
+	if dataIsVector3 then
+		local localVector = initialFrame:VectorToObjectSpace(data)
+		return function(t: number): Vector3
+			return self:SolveCFrameRMF((t - from) / totalTime, unitSpeed):VectorToWorldSpace(localVector)
+		end
+	else
+		local localCFrame = initialFrame:Inverse() * data
+		return function(t: number): CFrame
+			return self:SolveCFrameRMF((t - from) / totalTime, unitSpeed) * localCFrame
+		end
+	end
+end
+
+--[=[
+	Returns a function that interpolates the normal vectors `fromVector` and
+	`toVector` between the times `from` and `to`. `fromVector` and `toVector`
+	are projected to ensure that they are normal to the spline.
+
+	@error Bad fromVector -- fromVector cannot be tangent to the spline
+	@error Bad toVector -- toVector cannot be tangent to the spline
+	@return (number) -> Vector3 -- A function that returns the interpolated normal at a given time
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to: number, toVector: Vector3, unitSpeed: boolean?): (number) -> Vector3
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+
+	local totalTime = to - from
+
+	local frameA = self:SolveCFrameRMF(from, unitSpeed)
+	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
+	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
+
+	if normalA.Magnitude > EPSILON then
+		normalA = normalA.Unit
+	else
+		error("fromVector cannot be tangent to the curve")
+	end
+
+	local frameB = self:SolveCFrameRMF(to, unitSpeed)
+	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
+	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
+
+	if normalB.Magnitude > EPSILON then
+		normalB = normalB.Unit
+	else
+		error("toVector cannot be tangent to the curve")
+	end
+
+	local delta = (angleB - angleA) % (2 * math.pi)
+	if delta > math.pi then
+		delta -= 2 * math.pi
+	end
+
+	return function(t: number): Vector3
+		local frameT = self:SolveCFrameRMF(from + t * totalTime, unitSpeed)
+		local angleT = angleA + t * delta
+		local normalT = math.cos(angleT) * frameT.RightVector + math.sin(angleT) * frameT.UpVector
+		return normalT
+	end
+end
+
+--[=[
+	Computes a discrete approximation of a rotation-minimizing frame (RMF) along
+	the spline. Must be called before using [CatRom:SolveCFrameRMF].
+
+	@param numFramesPerSpline -- The number of discrete approximations in each interpolant (default: 4)
+	@param firstSplineIndex -- The index of the first interpolant to compute RMFs on (default: 1)
+	@param lastSplineIndex -- The index of the last interpolant to compute RMFs on (default: #splines)
+	@tag Vector3
+	@tag CFrame
+	@tag Precomputes
+]=]
+function CatRom:PrecomputeRMFs(numFramesPerSpline: number?, firstSplineIndex: number?, lastSplineIndex: number?)
+	numFramesPerSpline = if numFramesPerSpline then math.max(1, numFramesPerSpline) else DEFAULT_RMF_PRECOMPUTES
+	firstSplineIndex = firstSplineIndex or 1
+	lastSplineIndex = lastSplineIndex or #self.splines
+
+	local prevFrame
+	if firstSplineIndex == 1 then
+		prevFrame = CFrame.lookAlong(self:SolvePosition(0), self:SolveTangent(0))
+	else
+		prevFrame = self.splines[firstSplineIndex - 1].rmfLUT[numFramesPerSpline + 1]
+	end
+
+	for i = firstSplineIndex, lastSplineIndex do
+		local spline = self.splines[i]
+		spline:PrecomputeRMFs(numFramesPerSpline, prevFrame)
+		prevFrame = spline.rmfLUT[numFramesPerSpline + 1]
+	end
+end
+
+--------------------------------------------------------------------------------
 -- Piecewise methods -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -229,6 +588,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
+	@tag Precomputes
 ]=]
 function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "fast" | "accurate"?,  degree: number?)
 	when = when or "now"
@@ -248,7 +608,7 @@ function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "f
 end
 
 --[=[
-	Computes the arc length of the spline from time `from` to time `to`.
+	Computes the arc length of the spline between the times `from` and `to`.
 
 	@param from -- The time to start at (default: 0)
 	@param to -- The time to end at (default: 1)
@@ -377,349 +737,6 @@ function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	local max = firstMax:Max(table.unpack(maxima))
 
 	return min, max
-end
-
---------------------------------------------------------------------------------
--- Rotation-minimizing frames --------------------------------------------------
---------------------------------------------------------------------------------
-
---[=[
-	Computes a discrete approximation of a rotation-minimizing frame (RMF) along
-	the spline. Must be called before using [CatRom:SolveCFrameRMF].
-
-	@param numFramesPerSpline -- The number of discrete approximations in each interpolant (default: 4)
-	@param firstSplineIndex -- The index of the first interpolant to compute RMFs on (default: 1)
-	@param lastSplineIndex -- The index of the last interpolant to compute RMFs on (default: #splines)
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:PrecomputeRMFs(numFramesPerSpline: number?, firstSplineIndex: number?, lastSplineIndex: number?)
-	numFramesPerSpline = if numFramesPerSpline then math.max(1, numFramesPerSpline) else DEFAULT_RMF_PRECOMPUTES
-	firstSplineIndex = firstSplineIndex or 1
-	lastSplineIndex = lastSplineIndex or #self.splines
-
-	local prevFrame
-	if firstSplineIndex == 1 then
-		prevFrame = CFrame.lookAlong(self:SolvePosition(0), self:SolveTangent(0))
-	else
-		prevFrame = self.splines[firstSplineIndex - 1].rmfLUT[numFramesPerSpline + 1]
-	end
-
-	for i = firstSplineIndex, lastSplineIndex do
-		local spline = self.splines[i]
-		spline:PrecomputeRMFs(numFramesPerSpline, prevFrame)
-		prevFrame = spline.rmfLUT[numFramesPerSpline + 1]
-	end
-end
-
---[=[
-	Returns an approximate rotation-minimizing frame (RMF), i.e., a CFrame that
-	has minimal torsion when swept along the spline.
-
-	If you are tweening an RMF over time, then you can supply the RMF from the
-	previous frame for a better approximation. This also avoids calling
-	[CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you do not
-	supply a previous frame and you have not yet called [CatRom:PrecomputeRMFs],
-	then [CatRom:PrecomputeRMFs] will be called for only the necessary
-	interpolants.
-
-	@error Bad input -- prevFrame too close to queried frame
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@param prevFrame -- A previous, nearby RMF
-	@param numFramesPerSpline -- The number of discrete approximations to pass to [CatRom:PrecomputeRMFs] if necessary (default: 4)
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSpline: number?): CFrame
-	local spline, splineTime, splineIndex = self:GetSplineAtTime(t)
-	local splines = self.splines
-
-	if prevFrame then
-		return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
-	end
-
-	-- Precompute only the necessary RMF LUTs
-	if spline.rmfLUT == nil then
-		if splines[1].rmfLUT == nil then
-			self:PrecomputeRMFs(numFramesPerSpline, 1, splineIndex)
-		else
-			local i = splineIndex - 1
-			while splines[i].rmfLUT == nil do
-				i -= 1
-			end
-			self:PrecomputeRMFs(numFramesPerSpline, i + 1, splineIndex)
-		end
-	end
-
-	return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
-end
-
---[=[
-	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
-	minimal torsion. Requires calling
-	[CatRom:PrecomputeRMFs] first.
-
-	@param data -- The data to sweep
-	@param from -- The time to start at
-	@param to -- The time to end at
-	@param unitSpeed -- Whether the spline has unit speed
-	@return (number) -> Vector3 | CFrame -- A function that returns the transported data at a given time
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:GetParallelTransportInterpolant(data: Vector3 | CFrame, from: number?, to: number?, unitSpeed: boolean?): (number) -> Vector3 | CFrame
-	from = from or 0
-	to = to or 1
-	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
-	
-	local dataType = typeof(data)
-	local dataIsVector3 = dataType == "Vector3"
-	assert(dataIsVector3 or dataType == "CFrame", "Bad data: Can only parallel transport Vector3s and CFrames")
-
-	local initialFrame = self:SolveCFrameRMF(from, unitSpeed)
-	local totalTime = to - from
-
-	if dataIsVector3 then
-		local localVector = initialFrame:VectorToObjectSpace(data)
-		return function(t: number): Vector3
-			return self:SolveCFrameRMF((t - from) / totalTime, unitSpeed):VectorToWorldSpace(localVector)
-		end
-	else
-		local localCFrame = initialFrame:Inverse() * data
-		return function(t: number): CFrame
-			return self:SolveCFrameRMF((t - from) / totalTime, unitSpeed) * localCFrame
-		end
-	end
-end
-
---[=[
-	Returns a function that interpolates the normal vector `fromVector` at time
-	`from` and the normal vector `toVector` at time `to`. `fromVector` and
-	`toVector` are projected to ensure that they are normal to the spline.
-
-	@error Bad fromVector -- fromVector cannot be tangent to the spline
-	@error Bad toVector -- toVector cannot be tangent to the spline
-	@return (number) -> Vector3 -- A function that returns the interpolated normal at a given time
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:GetNormalVectorInterpolant(from: number, fromVector: Vector3, to: number, toVector: Vector3, unitSpeed: boolean?): (number) -> Vector3
-	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
-
-	local totalTime = to - from
-
-	local frameA = self:SolveCFrameRMF(from, unitSpeed)
-	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
-	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
-
-	if normalA.Magnitude > EPSILON then
-		normalA = normalA.Unit
-	else
-		error("fromVector cannot be tangent to the curve")
-	end
-
-	local frameB = self:SolveCFrameRMF(to, unitSpeed)
-	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
-	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
-
-	if normalB.Magnitude > EPSILON then
-		normalB = normalB.Unit
-	else
-		error("toVector cannot be tangent to the curve")
-	end
-
-	local delta = (angleB - angleA) % (2 * math.pi)
-	if delta > math.pi then
-		delta -= 2 * math.pi
-	end
-
-	return function(t: number): Vector3
-		local frameT = self:SolveCFrameRMF(from + t * totalTime, unitSpeed)
-		local angleT = angleA + t * delta
-		local normalT = math.cos(angleT) * frameT.RightVector + math.sin(angleT) * frameT.UpVector
-		return normalT
-	end
-end
-
---------------------------------------------------------------------------------
--- Proxy methods ---------------------------------------------------------------
---------------------------------------------------------------------------------
-
---[=[
-	Returns the position at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the velocity at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveVelocity(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveVelocity(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the acceleration at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the jerk at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveJerk(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveJerk(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the unit tangent vector at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the unit normal vector of the Frenet frame at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveNormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the unit binormal vector of the Frenet frame at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@return Vector3
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveBinormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the curvature at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@tag Vector2
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveCurvature(t: number, unitSpeed: boolean?): number
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns the torsion at time `t`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns a CFrame at time `t` looking along the tangent vector of the spline
-	with the goal up vector `upVector`.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@param upVector -- The goal up vector (default: `Vector3.yAxis`)
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveCFrameLookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrameLookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
-end
-
---[=[
-	Returns a CFrame at time `t` with LookVector, UpVector, and RightVector
-	being the unit tangent, normal, and binormal vectors of the Frenet frame
-	respectively. Note that if the curvature is 0 at `t`, then you will get
-	NaNs in the CFrame. This frame is also prone to sudden twists when curvature
-	is small.
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@tag Vector3
-	@tag CFrame
-]=]
-function CatRom:SolveCFrameFrenet(t: number, unitSpeed: boolean?): CFrame
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrameFrenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
-end
-
---[=[
-	Returns a CFrame at time `t` that smoothly interpolates the orientations of
-	the control points using spherical quadrangle interpolation (SQUAD).
-
-	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed
-	@tag CFrame
-]=]
-function CatRom:SolveCFrameSquad(t: number, unitSpeed: boolean?): CFrame
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrameSquad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
 end
 
 return CatRom
