@@ -1,3 +1,4 @@
+local TweenService = game:GetService("TweenService")
 local SplineFactory = require(script.SplineFactory)
 local Types = require(script.Types)
 
@@ -737,6 +738,55 @@ function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	local max = firstMax:Max(table.unpack(maxima))
 
 	return min, max
+end
+
+--[=[
+	A wrapper around TweenService that executes a callback function. The
+	callback accepts an interpolant and a time to pass into the interpolant's
+	methods. You must manually assign instance properties yourself.
+	
+	```lua
+	-- Tweens a part's CFrame from time 0 to time 1 with unit speed
+	local part = Instance.new("Part", workspace)
+	local spline = CatRom.new({...})
+
+	local tweenInfo = TweenInfo.new()
+	local callback = function(spline, t)
+		part.CFrame = spline:SolveCFrameRMF(t)
+	end
+
+	local tween = spline:CreateTween(tweenInfo, callback, 0, 1, true)
+	tween:Play()
+	```
+]=]
+function CatRom:CreateTween(
+	tweenInfo: TweenInfo,
+	callback: (Types.Spline, number) -> (),
+	from: number?,
+	to: number?,
+	unitSpeed: boolean?
+): Tween
+	from = from or 0
+	to = to or 1
+
+	local numberValue = Instance.new("NumberValue")
+	numberValue.Value = from
+	
+	local tween = TweenService:Create(numberValue, tweenInfo, { Value = to })
+
+	local conn = numberValue:GetPropertyChangedSignal("Value"):Connect(function()
+		-- TODO: GetSplineAtTime can benefit from knowing the previous spline
+		-- and time
+		local t = numberValue.Value
+		local spline, splineTime = self:GetSplineAtTime(t)
+		callback(spline, if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	end)
+
+	tween.Completed:Once(function()
+		conn:Disconnect()
+	end)
+
+	return tween
 end
 
 return CatRom

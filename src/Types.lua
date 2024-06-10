@@ -36,6 +36,14 @@ export type CatRomMt = {
 		unitSpeed: boolean?
 	) -> (),
 	SolveBoundingBox: (self: CatRom) -> (Vector, Vector),
+	CreateTween: (
+		self: CatRom,
+		tweenInfo: TweenInfo,
+		callback: (spline: Spline, time: number) -> (),
+		from: number?,
+		to: number?,
+		unitSpeed: boolean?
+	) -> Tween,
 
 	-- Rotation-minimzing frame methods
 	PrecomputeRMFs: (
