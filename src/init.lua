@@ -217,7 +217,9 @@ function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
 end
 
 --[=[
-	Returns the unit normal vector of the Frenet frame at time `t`.
+	Returns the unit normal vector of the Frenet frame at time `t`. Returns
+	`(nan, nan, nan)` if the Frenet frame does not exist (i.e., when curvature
+	is 0).
 
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
@@ -233,7 +235,9 @@ function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
 end
 
 --[=[
-	Returns the unit binormal vector of the Frenet frame at time `t`.
+	Returns the unit binormal vector of the Frenet frame at time `t`. Returns
+	`(nan, nan, nan)` if the Frenet frame does not exist (i.e., when curvature
+	is 0).
 
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
@@ -294,10 +298,10 @@ end
 
 --[=[
 	Returns a CFrame at time `t` with LookVector, UpVector, and RightVector
-	being the unit tangent, normal, and binormal vectors of the Frenet frame
-	respectively. Note that if the curvature is 0 at `t`, then you will get
-	NaNs in the CFrame. This frame is also prone to sudden twists when curvature
-	is small.
+	being the unit tangent, normal, and binormal vectors of the Frenet frame,
+	respectively. Returns a CFrame with NaNs in its orientation if the Frenet
+	frame does not exist (i.e., when curvature is 0). The Frenet frame is also
+	prone to sudden twists when curvature is near 0.
 
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
@@ -333,7 +337,7 @@ end
 	has minimal torsion when swept along the spline.
 
 	If you are tweening an RMF over time, then you can supply the RMF from the
-	previous frame for a better approximation. This also avoids calling
+	previous frame for a better approximation. Doing so also avoids calling
 	[CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you do not
 	supply a previous frame and you have not yet called [CatRom:PrecomputeRMFs],
 	then [CatRom:PrecomputeRMFs] will be called for only the necessary
@@ -374,8 +378,11 @@ end
 
 --[=[
 	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
-	minimal torsion. Requires calling
-	[CatRom:PrecomputeRMFs] first.
+	minimal torsion.
+	
+	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
+	the accuracy of the rotation-minimizing frame approximation—otherwise it
+	will be called for you with default values.
 
 	@param data -- The data to sweep
 	@param from -- The time to start at
@@ -418,8 +425,12 @@ end
 
 --[=[
 	Returns a function that interpolates the normal vectors `fromVector` and
-	`toVector` between the times `from` and `to`. `fromVector` and `toVector`
-	are projected to ensure that they are normal to the spline.
+	`toVector` at times `from` and `to`, respectively. `fromVector` and
+	`toVector` are projected to ensure that they are normal to the spline.
+
+	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
+	the accuracy of the rotation-minimizing frame approximation—otherwise it
+	will be called for you with default values.
 
 	@error Bad fromVector -- fromVector cannot be tangent to the spline
 	@error Bad toVector -- toVector cannot be tangent to the spline
