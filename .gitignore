@@ -4,3 +4,9 @@
 # Roblox Studio lock files
 *.rbxlx.lock
 *.rbxl.lock
+
+# Moonwave
+/build
+
+# Luau LSP
+sourcemap.json
