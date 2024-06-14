@@ -8,7 +8,7 @@ export type CatRom = typeof(setmetatable(
 		knots: {number},
 		length: number,
 		points: {Point},
-		splines: {Spline}
+		segments: {Segment}
 	},
 	{} :: CatRomMt
 ))
@@ -19,7 +19,7 @@ export type CatRomMt = {
 	new: (points: {Point}, alpha: number?, tension: number?, loops: boolean?) -> CatRom,
 	
 	-- Piecewise methods
-	GetSplineAtTime: (self: CatRom, t: number) -> (Spline, number, number),
+	GetSegmentAtTime: (self: CatRom, t: number) -> (Segment, number, number),
 	PrecomputeUnitSpeedData: (
 		self: CatRom,
 		when: "now" | "on demand",
@@ -29,7 +29,7 @@ export type CatRomMt = {
 	SolveLength: (self: CatRom, from: number?, to: number?) -> number,
 	SolveBulk: (
 		self: CatRom,
-		f: (spline: Spline, t: number) -> (),
+		f: (segment: Segment, t: number) -> (),
 		numSamples: number,
 		from: number?,
 		to: number?,
@@ -39,7 +39,7 @@ export type CatRomMt = {
 	CreateTween: (
 		self: CatRom,
 		tweenInfo: TweenInfo,
-		callback: (spline: Spline, time: number) -> (),
+		callback: (segment: Segment, time: number) -> (),
 		from: number?,
 		to: number?,
 		unitSpeed: boolean?
@@ -48,16 +48,16 @@ export type CatRomMt = {
 	-- Rotation-minimzing frame methods
 	PrecomputeRMFs: (
 		self: CatRom,
-		numFramesPerSpline: number?,
-		firstSplineIndex: number?,
-		lastSplineIndex: number?
+		numFramesPerSegment: number?,
+		firstSegmentIndex: number?,
+		lastSegmentIndex: number?
 	) -> (),
 	SolveCFrameRMF: (
 		self: CatRom,
 		t: number,
 		unitSpeed: boolean?,
 		prevFrame: CFrame?,
-		numFramesPerSpline: number?
+		numFramesPerSegment: number?
 	) -> CFrame,
 	GetParallelTransportInterpolant: (
 		self: CatRom,
@@ -90,7 +90,7 @@ export type CatRomMt = {
 	SolveCFrameSquad:      (self: CatRom, t: number, unitSpeed: boolean?) -> CFrame,
 }
 
-export type Spline = typeof(setmetatable(
+export type Segment = typeof(setmetatable(
 	{} :: {
 		cheb: Chebyshev?,
 		chebDegree: number?,
@@ -111,11 +111,11 @@ export type Spline = typeof(setmetatable(
 		q2: Quaternion?,
 		q3: Quaternion?,
 	},
-	{} :: SplineMt
+	{} :: SegmentMt
 ))
 
-export type SplineMt = {
-	__index: SplineMt,
+export type SegmentMt = {
+	__index: SegmentMt,
 
 	new: (
 		a: Vector,
@@ -128,39 +128,35 @@ export type SplineMt = {
 		q2: Quaternion,
 		q3: Quaternion,
 		length: number?
-	) -> Spline,
+	) -> Segment,
 
 	-- Basic methods
-	SolvePosition:     (self: Spline, t: number) -> Vector,
-	SolveVelocity:     (self: Spline, t: number) -> Vector,
-	SolveAcceleration: (self: Spline, t: number) -> Vector,
-	SolveJerk:         (self: Spline) -> Vector,
-	SolveTangent:      (self: Spline, t: number) -> Vector,
-	SolveNormal:       (self: Spline, t: number) -> Vector,
-	SolveBinormal:     (self: Spline, t: number) -> Vector3,
-	SolveCurvature:    (self: Spline, t: number) -> number,
-	SolveTorsion:      (self: Spline, t: number) -> number,
+	SolvePosition:     (self: Segment, t: number) -> Vector,
+	SolveVelocity:     (self: Segment, t: number) -> Vector,
+	SolveAcceleration: (self: Segment, t: number) -> Vector,
+	SolveJerk:         (self: Segment) -> Vector,
+	SolveTangent:      (self: Segment, t: number) -> Vector,
+	SolveNormal:       (self: Segment, t: number) -> Vector,
+	SolveBinormal:     (self: Segment, t: number) -> Vector3,
+	SolveCurvature:    (self: Segment, t: number) -> number,
+	SolveTorsion:      (self: Segment, t: number) -> number,
 
 	-- Moving frame methods
-	SolveCFrameLookAlong: (self: Spline, t: number, upVector: Vector3?) -> CFrame,
-	SolveCFrameFrenet:    (self: Spline, t: number) -> CFrame,
-	SolveCFrameSquad:     (self: Spline, t: number) -> CFrame,
-	SolveCFrameRMF:       (self: Spline, t: number, prevFrame: CFrame?) -> CFrame,
-	PrecomputeRMFs: (
-		self: Spline,
-		numFramesPerSpline: number,
-		initialFrame: CFrame
-	) -> (),
+	SolveCFrameLookAlong: (self: Segment, t: number, upVector: Vector3?) -> CFrame,
+	SolveCFrameFrenet:    (self: Segment, t: number) -> CFrame,
+	SolveCFrameSquad:     (self: Segment, t: number) -> CFrame,
+	SolveCFrameRMF:       (self: Segment, t: number, prevFrame: CFrame?) -> CFrame,
+	PrecomputeRMFs: (self: Segment, numFrames: number, initialFrame: CFrame) -> (),
 	
 	-- Numerical methods
-	SolveLength: (self: Spline, from: number?, to: number?) -> number,
-	SolveBoundingBox: (self: Spline) -> (Vector, Vector),
+	SolveLength: (self: Segment, from: number?, to: number?) -> number,
+	SolveBoundingBox: (self: Segment) -> (Vector, Vector),
 	
 	-- Arc length reparametrization methods
-	Reparametrize: (self: Spline, s: number) -> number,
-	PrecomputeUnitSpeedData: (self: Spline, precomputeNow: boolean, useChebAsLUT: boolean, degree: number) -> (),
-	_ReparametrizeNewtonBisection: (self: Spline, s: number) -> number,
-	_GetChebyshevInterpolant: (self: Spline, degree: number) -> Chebyshev,
+	Reparametrize: (self: Segment, s: number) -> number,
+	PrecomputeUnitSpeedData: (self: Segment, precomputeNow: boolean, useChebAsLUT: boolean, degree: number) -> (),
+	_ReparametrizeNewtonBisection: (self: Segment, s: number) -> number,
+	_GetChebyshevInterpolant: (self: Segment, degree: number) -> Chebyshev,
 }
 
 export type Chebyshev = typeof(setmetatable(

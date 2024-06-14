@@ -1,18 +1,18 @@
--- Creates splines with minimal repeat computations
+-- Creates spline segments with minimal repeat computations
 -- Fast-tracks special values of alpha and tension
 -- Parametrizes following https://qroph.github.io/2018/07/30/smooth-paths-using-catmull-rom-splines.html
 
-local Spline = require(script.Parent.Spline)
+local Segment = require(script.Parent.Segment)
 local Types = require(script.Parent.Types)
 local Utils = require(script.Parent.Utils)
 
 -- Fast track for alpha = 0
-local function createUniformSplines(
+local function createUniformSegments(
 	positions: {Types.Vector},
 	tension: number,
 	pointType: Types.PointType,
 	quats: {Types.Quaternion}?
-): {Types.Spline}
+): {Types.Segment}
 	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
 
 	local p10 = p1 - p0
@@ -28,13 +28,13 @@ local function createUniformSplines(
 		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 	end
 
-	local splines = table.create(#positions - 3)
-	local splineIndex = 1
+	local segments = table.create(#positions - 3)
+	local segmentIndex = 1
 
-	-- Create first spline
+	-- Create first segment
 	local a = -2 * p21 + m1 + m2
 	local b = 3 * p21 - 2 * m1 - m2
-	splines[1] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+	segments[1] = Segment.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
 
 	for i = 5, #positions do
 		-- Slide window
@@ -46,24 +46,24 @@ local function createUniformSplines(
 			q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		end
 
-		splineIndex += 1
+		segmentIndex += 1
 
-		-- Create spline
+		-- Create segment
 		a = -2 * p21 + m1 + m2
 		b = 3 * p21 - 2 * m1 - m2
-		splines[splineIndex] = Spline.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
+		segments[segmentIndex] = Segment.new(a, b, m1, p1, pointType, q0, q1, q2, q3)
 	end
 
-	return splines
+	return segments
 end
 
 -- Fast track for alpha = 0.5
-local function createCentripetalSplines(
+local function createCentripetalSegments(
 	positions: {Types.Vector},
 	tension: number,
 	pointType: Types.PointType,
 	quats: {Types.Quaternion}?
-): {Types.Spline}
+): {Types.Segment}
 	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
 
 	local p10 = p1 - p0
@@ -89,16 +89,16 @@ local function createCentripetalSplines(
 		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 	end
 
-	local splines = table.create(#positions - 3)
-	local splineIndex = 1
+	local segments = table.create(#positions - 3)
+	local segmentIndex = 1
 
-	-- Create first spline
+	-- Create first segment
 	local scalar = coTension * p21Mag
 	local scaledM1 = scalar * m1
 	local scaledM2 = scalar * m2
 	local a = -2 * p21 + scaledM1 + scaledM2
 	local b = 3 * p21 - 2 * scaledM1 - scaledM2
-	splines[1] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
+	segments[1] = Segment.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 
 	for i = 5, #positions do
 		-- Slide window
@@ -113,26 +113,26 @@ local function createCentripetalSplines(
 			q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		end
 
-		splineIndex += 1
+		segmentIndex += 1
 
-		-- Create spline
+		-- Create segment
 		scalar = coTension * p21Mag
 		scaledM1, scaledM2 = scalar * m1, scalar * m2
 		a = -2 * p21 + scaledM1 + scaledM2
 		b = 3 * p21 - 2 * scaledM1 - scaledM2
-		splines[splineIndex] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
+		segments[segmentIndex] = Segment.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 	end
 
-	return splines
+	return segments
 end
 
-local function createSplines(
+local function createSegments(
 	positions: {Types.Vector},
 	alpha: number,
 	tension: number,
 	pointType: Types.PointType,
 	quats: {Types.Quaternion}?
-): {Types.Spline}
+): {Types.Segment}
 	local p0, p1, p2, p3 = positions[1], positions[2], positions[3], positions[4]
 
 	local p10 = p1 - p0
@@ -158,16 +158,16 @@ local function createSplines(
 		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 	end
 
-	local splines = table.create(#positions - 3)
-	local splineIndex = 1
+	local segments = table.create(#positions - 3)
+	local segmentIndex = 1
 
-	-- Create first spline
+	-- Create first segment
 	local scalar = coTension * p21Mag
 	local scaledM1 = scalar * m1
 	local scaledM2 = scalar * m2
 	local a = -2 * p21 + scaledM1 + scaledM2
 	local b = 3 * p21 - 2 * scaledM1 - scaledM2
-	splines[1] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
+	segments[1] = Segment.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 
 	for i = 5, #positions do
 		-- Slide window
@@ -182,25 +182,25 @@ local function createSplines(
 			q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		end
 
-		splineIndex += 1
+		segmentIndex += 1
 
-		-- Create spline
+		-- Create segment
 		scalar = coTension * p21Mag
 		scaledM1, scaledM2 = scalar * m1, scalar * m2
 		a = -2 * p21 + scaledM1 + scaledM2
 		b = 3 * p21 - 2 * scaledM1 - scaledM2
-		splines[splineIndex] = Spline.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
+		segments[segmentIndex] = Segment.new(a, b, scaledM1, p1, pointType, q0, q1, q2, q3)
 	end
 
-	return splines
+	return segments
 end
 
 -- Fast track for tension = 1
-local function createTautSplines(
+local function createTautSegments(
 	positions: {Types.Point},
 	pointType: Types.PointType,
 	quats: {Types.Quaternion}?
-): {Types.Spline}
+): {Types.Segment}
 	local p1, p2 = positions[2], positions[3]
 
 	local q0, q1, q2, q3
@@ -208,15 +208,15 @@ local function createTautSplines(
 		q0, q1, q2, q3 = quats[1], quats[2], quats[3], quats[4]
 	end
 
-	local splines = table.create(#positions - 3)
-	local splineIndex = 1
+	local segments = table.create(#positions - 3)
+	local segmentIndex = 1
 
-	-- Create first spline
+	-- Create first segment
 	local p21 = p2 - p1
 	local a = -2 * p21
 	local b = 3 * p21
 	local zero = p1 * 0
-	splines[1] = Spline.new(a, b, zero, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
+	segments[1] = Segment.new(a, b, zero, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
 
 	for i = 4, #positions - 1 do
 		-- Slide window
@@ -226,32 +226,32 @@ local function createTautSplines(
 			q0, q1, q2, q3 = q1, q2, q3, quats[i]
 		end
 
-		splineIndex += 1
+		segmentIndex += 1
 
-		-- Create spline
+		-- Create segment
 		p21 = p2 - p1
 		a = -2 * p21
 		b = 3 * p21
-		splines[splineIndex] = Spline.new(a, b, zero, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
+		segments[segmentIndex] = Segment.new(a, b, zero, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
 	end
 	
-	return splines
+	return segments
 end
 
-local SplineFactory = {}
+local SegmentFactory = {}
 
-function SplineFactory.CreatePointSpline(point: Types.Point, pointType: Types.PointType): Types.Spline
+function SegmentFactory.CreatePointSegment(point: Types.Point, pointType: Types.PointType): Types.Segment
 	local pos, quat = Utils.SeparatePositionAndRotation(point, pointType)
 	local zero = pos * 0
 
-	return Spline.new(zero, zero, zero, pos, pointType, quat, nil, nil, nil, 0)
+	return Segment.new(zero, zero, zero, pos, pointType, quat, nil, nil, nil, 0)
 end
 
-function SplineFactory.CreateLineSpline(
+function SegmentFactory.CreateLineSegment(
 	point1: Types.Point,
 	point2: Types.Point,
 	pointType: Types.PointType
-): Types.Spline
+): Types.Segment
 	local point0 = point2:Lerp(point1, 2)
 	local point3 = point1:Lerp(point2, 2)
 
@@ -263,16 +263,16 @@ function SplineFactory.CreateLineSpline(
 	local zero = p1 * 0
 	local p21 = p2 - p1
 
-	return Spline.new(zero, zero, p21, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
+	return Segment.new(zero, zero, p21, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
 end
 
-function SplineFactory.CreateSplines(
+function SegmentFactory.CreateSegments(
 	points: {Types.Point},
 	alpha: number,
 	tension: number,
 	loops: boolean,
 	pointType: Types.PointType
-): {Types.Spline}
+): {Types.Segment}
 	local numPoints = #points
 	local firstPoint = points[1]
 	local lastPoint = points[numPoints]
@@ -308,16 +308,16 @@ function SplineFactory.CreateSplines(
 		table.move(points, 1, numPoints, 2, positions)
 	end
 
-	-- Create splines
+	-- Create segments
 	if tension == 1 then
-		return createTautSplines(positions, pointType, quats)
+		return createTautSegments(positions, pointType, quats)
 	elseif alpha == 0.5 then
-		return createCentripetalSplines(positions, tension, pointType, quats)
+		return createCentripetalSegments(positions, tension, pointType, quats)
 	elseif alpha == 0 then
-		return createUniformSplines(positions, tension, pointType, quats)
+		return createUniformSegments(positions, tension, pointType, quats)
 	else
-		return createSplines(positions, alpha, tension, pointType, quats)
+		return createSegments(positions, alpha, tension, pointType, quats)
 	end
 end
 
-return SplineFactory
+return SegmentFactory

@@ -1,5 +1,5 @@
 local TweenService = game:GetService("TweenService")
-local SplineFactory = require(script.SplineFactory)
+local SegmentFactory = require(script.SegmentFactory)
 local Types = require(script.Types)
 
 local DEFAULT_ALPHA = 0.5
@@ -31,9 +31,9 @@ CatRom.__index = CatRom
 --- table of control points passed into the constructor, as adjacent points
 --- that are fuzzy-equal are removed during construction.
 
---- @prop splines {Spline}
+--- @prop segments {Segment}
 --- @within CatRom
---- The individual interpolants chained together to build the full spline.
+--- The chain of segments that make up the full spline.
 
 -- Removes adjacent points that are fuzzy-equal
 local function getUniquePoints(points: {Types.Point}): {Types.Point}
@@ -92,43 +92,43 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 
 	-- Early exits
 	if #points <= 2 then
-		local spline = if #points == 1
-			then SplineFactory.CreatePointSpline(points[1], pointType)
-			else SplineFactory.CreateLineSpline(points[1], points[2], pointType)
+		local segment = if #points == 1
+			then SegmentFactory.CreatePointSegment(points[1], pointType)
+			else SegmentFactory.CreateLineSegment(points[1], points[2], pointType)
 
 		return setmetatable({
 			knots = {0, 1},
-			length = spline.length,
+			length = segment.length,
 			points = points,
-			splines = {spline},
+			segments = {segment},
 		}, CatRom)
 	end
 
-	-- Create splines
-	local splines = SplineFactory.CreateSplines(points, alpha, tension, loops, pointType)
-	local numSplines = #splines
+	-- Create segments
+	local segments = SegmentFactory.CreateSegments(points, alpha, tension, loops, pointType)
+	local numSegments = #segments
 
 	-- Tally length
 	local totalLength = 0
-	for _, spline in splines do
-		totalLength += spline.length
+	for _, segment in segments do
+		totalLength += segment.length
 	end
 
 	-- Create knot vector
-	local knots = table.create(numSplines + 1)
-	knots[numSplines + 1] = 1
+	local knots = table.create(numSegments + 1)
+	knots[numSegments + 1] = 1
 
 	local runningLength = 0
-	for i, spline in splines do
+	for i, segment in segments do
 		knots[i] = runningLength / totalLength
-		runningLength += spline.length
+		runningLength += segment.length
 	end
 
 	return setmetatable({
 		knots = knots,
 		length = totalLength,
 		points = points,
-		splines = splines,
+		segments = segments,
 	}, CatRom)
 end
 
@@ -148,8 +148,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolvePosition(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolvePosition(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -164,8 +164,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveVelocity(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveVelocity(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveVelocity(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -180,8 +180,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveAcceleration(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveAcceleration(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -195,7 +195,7 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveJerk(t: number): Types.Vector
-	return self:GetSplineAtTime(t):SolveJerk()
+	return self:GetSegmentAtTime(t):SolveJerk()
 end
 
 --[=[
@@ -210,8 +210,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTangent(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveTangent(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -228,8 +228,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveNormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveNormal(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -245,8 +245,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveBinormal(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveBinormal(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -260,8 +260,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveCurvature(t: number, unitSpeed: boolean?): number
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCurvature(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveCurvature(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -274,8 +274,8 @@ end
 	@tag Essentials
 ]=]
 function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveTorsion(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveTorsion(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -290,8 +290,8 @@ end
 	@tag Moving frames
 ]=]
 function CatRom:SolveCFrameLookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrameLookAlong(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, upVector)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveCFrameLookAlong(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime, upVector)
 end
 
 --[=[
@@ -308,8 +308,8 @@ end
 	@tag Moving frames
 ]=]
 function CatRom:SolveCFrameFrenet(t: number, unitSpeed: boolean?): CFrame
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrameFrenet(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveCFrameFrenet(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --[=[
@@ -322,8 +322,8 @@ end
 	@tag Moving frames
 ]=]
 function CatRom:SolveCFrameSquad(t: number, unitSpeed: boolean?): CFrame
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveCFrameSquad(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+	local segment, segmentTime = self:GetSegmentAtTime(t)
+	return segment:SolveCFrameSquad(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 end
 
 --------------------------------------------------------------------------------
@@ -338,40 +338,39 @@ end
 	previous frame for a better approximation. Doing so also avoids calling
 	[CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you do not
 	supply a previous frame and you have not yet called [CatRom:PrecomputeRMFs],
-	then [CatRom:PrecomputeRMFs] will be called for only the necessary
-	interpolants.
+	then [CatRom:PrecomputeRMFs] will be called for only the necessary segments.
 
 	@error Bad input -- prevFrame too close to queried frame
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@param prevFrame -- A previous, nearby RMF
-	@param numFramesPerSpline -- The number of discrete approximations to pass to [CatRom:PrecomputeRMFs] if necessary (default: 4)
+	@param numFramesPerSegment -- The number of discrete approximations to pass to [CatRom:PrecomputeRMFs] if necessary (default: 4)
 	@tag Vector3
 	@tag CFrame
 	@tag Moving frames
 ]=]
-function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSpline: number?): CFrame
-	local spline, splineTime, splineIndex = self:GetSplineAtTime(t)
-	local splines = self.splines
+function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame?, numFramesPerSegment: number?): CFrame
+	local segment, segmentTime, segmentIndex = self:GetSegmentAtTime(t)
+	local segments = self.segments
 
 	if prevFrame then
-		return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+		return segment:SolveCFrameRMF(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime, prevFrame)
 	end
 
 	-- Precompute only the necessary RMF LUTs
-	if spline.rmfLUT == nil then
-		if splines[1].rmfLUT == nil then
-			self:PrecomputeRMFs(numFramesPerSpline, 1, splineIndex)
+	if segment.rmfLUT == nil then
+		if segments[1].rmfLUT == nil then
+			self:PrecomputeRMFs(numFramesPerSegment, 1, segmentIndex)
 		else
-			local i = splineIndex - 1
-			while splines[i].rmfLUT == nil do
+			local i = segmentIndex - 1
+			while segments[i].rmfLUT == nil do
 				i -= 1
 			end
-			self:PrecomputeRMFs(numFramesPerSpline, i + 1, splineIndex)
+			self:PrecomputeRMFs(numFramesPerSegment, i + 1, segmentIndex)
 		end
 	end
 
-	return spline:SolveCFrameRMF(if unitSpeed then spline:Reparametrize(splineTime) else splineTime, prevFrame)
+	return segment:SolveCFrameRMF(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime, prevFrame)
 end
 
 --[=[
@@ -485,29 +484,29 @@ end
 	Precomputes a discrete approximation of a rotation-minimizing frame (RMF) along
 	the spline.
 
-	@param numFramesPerSpline -- The number of discrete approximations in each interpolant (default: 4)
-	@param firstSplineIndex -- The index of the first interpolant to compute RMFs on (default: 1)
-	@param lastSplineIndex -- The index of the last interpolant to compute RMFs on (default: #splines)
+	@param numFramesPerSegment -- The number of discrete approximations in each segment (default: 4)
+	@param firstSegmentIndex -- The index of the first segment to compute RMFs on (default: 1)
+	@param lastSegmentIndex -- The index of the last segment to compute RMFs on (default: #segments)
 	@tag Vector3
 	@tag CFrame
 	@tag Precomputes
 ]=]
-function CatRom:PrecomputeRMFs(numFramesPerSpline: number?, firstSplineIndex: number?, lastSplineIndex: number?)
-	numFramesPerSpline = if numFramesPerSpline then math.max(1, numFramesPerSpline) else DEFAULT_RMF_PRECOMPUTES
-	firstSplineIndex = firstSplineIndex or 1
-	lastSplineIndex = lastSplineIndex or #self.splines
+function CatRom:PrecomputeRMFs(numFramesPerSegment: number?, firstSegmentIndex: number?, lastSegmentIndex: number?)
+	numFramesPerSegment = if numFramesPerSegment then math.max(1, numFramesPerSegment) else DEFAULT_RMF_PRECOMPUTES
+	firstSegmentIndex = firstSegmentIndex or 1
+	lastSegmentIndex = lastSegmentIndex or #self.segments
 
 	local prevFrame
-	if firstSplineIndex == 1 then
+	if firstSegmentIndex == 1 then
 		prevFrame = CFrame.lookAlong(self:SolvePosition(0), self:SolveTangent(0))
 	else
-		prevFrame = self.splines[firstSplineIndex - 1].rmfLUT[numFramesPerSpline + 1]
+		prevFrame = self.segments[firstSegmentIndex - 1].rmfLUT[numFramesPerSegment + 1]
 	end
 
-	for i = firstSplineIndex, lastSplineIndex do
-		local spline = self.splines[i]
-		spline:PrecomputeRMFs(numFramesPerSpline, prevFrame)
-		prevFrame = spline.rmfLUT[numFramesPerSpline + 1]
+	for i = firstSegmentIndex, lastSegmentIndex do
+		local segment = self.segments[i]
+		segment:PrecomputeRMFs(numFramesPerSegment, prevFrame)
+		prevFrame = segment.rmfLUT[numFramesPerSegment + 1]
 	end
 end
 
@@ -538,33 +537,33 @@ end
 	S(t) = S_j((t - a) / (b - a)). Finally, for completeness, S(1) = S_n(1) with
 	S_n having domain [0, 1] instead of [0, 1).
 
-	@error Failed to get spline -- Should never happen
-	@return Spline -- The interpolant S_j
+	@error Failed to get segment -- Should never happen
+	@return Segment -- The interpolant S_j
 	@return number -- The time (t - a) / (b - a)
 	@return number -- The index j
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom:GetSplineAtTime(t: number): (Types.Spline, number, number)
+function CatRom:GetSegmentAtTime(t: number): (Types.Segment, number, number)
 	assert(t >= 0 and t <= 1, "Time must be in [0, 1]")
 
-	local splines = self.splines
+	local segments = self.segments
 	local knots = self.knots
-	local numSplines = #splines
+	local numSegments = #segments
 
 	-- Special cases
-	if numSplines == 1 then
-		return splines[1], t, 1
+	if numSegments == 1 then
+		return segments[1], t, 1
 	elseif t == 0 then
-		return splines[1], 0, 1
+		return segments[1], 0, 1
 	elseif t == 1 then
-		return splines[numSplines], 1, numSplines
+		return segments[numSegments], 1, numSegments
 	end
 
-	-- Binary search for the spline containing t
+	-- Binary search for the segment containing t
 	local left = 1
-	local right = numSplines
+	local right = numSegments
 
 	while left <= right do
 		local mid = math.floor((left + right) / 2)
@@ -574,9 +573,9 @@ function CatRom:GetSplineAtTime(t: number): (Types.Spline, number, number)
 			local intervalEnd = knots[mid + 1]
 
 			if t <= intervalEnd then
-				local spline = splines[mid]
-				local splineTime = (t - intervalStart) / (intervalEnd - intervalStart)
-				return spline, splineTime, mid
+				local segment = segments[mid]
+				local segmentTime = (t - intervalStart) / (intervalEnd - intervalStart)
+				return segment, segmentTime, mid
 			else
 				left = mid + 1
 			end
@@ -586,20 +585,20 @@ function CatRom:GetSplineAtTime(t: number): (Types.Spline, number, number)
 	end
 
 	-- This should never happen
-	error("Failed to get spline")
+	error("Failed to get segment")
 end
 
 --[=[
 	Makes `unitSpeed` methods significantly faster but slightly less accurate.
 	It does this by approximating an expensive root-find on the arc length
-	function of an interpolant with a Chebyshev polynomial that interpolates the
+	function of a segment with a Chebyshev polynomial that interpolates the
 	inverse of the arc length function. Once the cheb has been computed, you can
 	either use it as a lookup table ("fast" strategy) or evaluate it as a
 	polynomial ("accurate" strategy). The "fast" strategy is roughly an order of
 	magnitude faster than the "accurate" strategy but is less accurate.
 		
 	You should precompute when you are doing more `unitSpeed` calls per
-	interpolant in the spline than the `degree` of the interpolant's cheb
+	segment in the spline than the `degree` of the segment's cheb
 	(default: 8).
 
 	@param when -- When the cheb should be computed: "now" is right now (useful for doing bulk solves immediately), "on demand" is as-needed (useful for doing bulk method calls over time)
@@ -622,8 +621,8 @@ function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "f
 	local precomputeNow = when == "now"
 	local useChebAsLUT = strategy == "fast"
 
-	for _, spline in self.splines do
-		spline:PrecomputeUnitSpeedData(precomputeNow, useChebAsLUT, degree)
+	for _, segment in self.segments do
+		segment:PrecomputeUnitSpeedData(precomputeNow, useChebAsLUT, degree)
 	end
 end
 
@@ -647,19 +646,19 @@ function CatRom:SolveLength(from: number?, to: number?): number
 
 	assert(a >= 0 and b <= 1, "Times must be in [0, 1]")
 	
-	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
-	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
+	local segmentA, segmentATime, segmentAIndex = self:GetSegmentAtTime(a)
+	local segmentB, segmentBTime, segmentBIndex = self:GetSegmentAtTime(b)
 
-	if splineAIndex == splineBIndex then
-		return splineA:SolveLength(splineATime, splineBTime)
+	if segmentAIndex == segmentBIndex then
+		return segmentA:SolveLength(segmentATime, segmentBTime)
 	end
 
-	local lengthA = splineA:SolveLength(splineATime, 1)
-	local lengthB = splineB:SolveLength(0, splineBTime)
+	local lengthA = segmentA:SolveLength(segmentATime, 1)
+	local lengthB = segmentB:SolveLength(0, segmentBTime)
 
 	local intermediateLengths = 0
-	for i = splineAIndex + 1, splineBIndex - 1 do
-		intermediateLengths += self.splines[i].length
+	for i = segmentAIndex + 1, segmentBIndex - 1 do
+		intermediateLengths += self.segments[i].length
 	end
 
 	return lengthA + intermediateLengths + lengthB
@@ -669,7 +668,7 @@ end
 	A helper method for doing the same computation at many uniformly-spaced
 	times. Has better performance than writing a for loop manually.
 
-	@param f (Spline, number) -> () -- A function accepting an interpolant and a time
+	@param f (Segment, number) -> () -- A function accepting a segment and a time
 	@param numSamples -- The number of uniformly-spaced samples (includes the two samples at the boundaries)
 	@param from -- The time to start at (default: 0)
 	@param to -- The time to end at (default: 1)
@@ -679,7 +678,7 @@ end
 	@tag CFrame
 ]=]
 function CatRom:SolveBulk(
-	f: (spline: Types.Spline, t: number) -> (),
+	f: (segment: Types.Segment, t: number) -> (),
 	numSamples: number,
 	from: number?,
 	to: number?,
@@ -696,31 +695,31 @@ function CatRom:SolveBulk(
 		return
 	end
 
-	local splines = self.splines
+	local segments = self.segments
 	local knots = self.knots
 
-	local splineA, splineATime, splineAIndex = self:GetSplineAtTime(a)
-	local splineB, splineBTime, splineBIndex = self:GetSplineAtTime(b)
+	local segmentA, segmentATime, segmentAIndex = self:GetSegmentAtTime(a)
+	local segmentB, segmentBTime, segmentBIndex = self:GetSegmentAtTime(b)
 
 	-- First sample
-	f(splineA, splineATime)
+	f(segmentA, segmentATime)
 	
 	-- Samples 2, ..., numSamples - 1
 	local lerpIncrement = (b - a) / (numSamples - 1)
-	local previousDomainMax = knots[splineAIndex]
+	local previousDomainMax = knots[segmentAIndex]
 	local nextSampleTime = a + lerpIncrement
 	local nextSampleIndex = 2
 
-	for i = splineAIndex, splineBIndex do
-		local spline = splines[i]
+	for i = segmentAIndex, segmentBIndex do
+		local segment = segments[i]
 		local domainMin = previousDomainMax
 		local domainMax = knots[i + 1]
 		local domainWidth = domainMax - domainMin
 
-		-- Run all samples in this spline
+		-- Run all samples in this segment
 		while nextSampleTime <= domainMax and nextSampleIndex < numSamples do
 			local t = (nextSampleTime - domainMin) / domainWidth
-			f(spline, if unitSpeed then spline:Reparametrize(t) else t)
+			f(segment, if unitSpeed then segment:Reparametrize(t) else t)
 			nextSampleTime = a + nextSampleIndex * lerpIncrement
 			nextSampleIndex += 1
 		end
@@ -734,7 +733,7 @@ function CatRom:SolveBulk(
 
 	-- Last sample
 	if numSamples > 1 then
-		f(splineB, splineBTime)
+		f(segmentB, segmentBTime)
 	end
 end
 
@@ -748,15 +747,15 @@ end
 	@tag CFrame
 ]=]
 function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
-	local splines = self.splines
-	local n = #splines - 1
+	local segments = self.segments
+	local n = #segments - 1
 
-	local firstMin, firstMax = splines[1]:SolveBoundingBox()
+	local firstMin, firstMax = segments[1]:SolveBoundingBox()
 	local minima = table.create(n)
 	local maxima = table.create(n)
 
 	for i = 1, n do
-		minima[i], maxima[i] = splines[i + 1]:SolveBoundingBox()
+		minima[i], maxima[i] = segments[i + 1]:SolveBoundingBox()
 	end
 
 	local min = firstMin:Min(table.unpack(minima))
@@ -767,7 +766,7 @@ end
 
 --[=[
 	A wrapper around TweenService that executes a callback function. The
-	callback accepts an interpolant and a time to pass into the interpolant's
+	callback accepts a segment and a time to pass into the segment's
 	methods. You must manually assign instance properties yourself.
 	
 	```lua
@@ -776,8 +775,8 @@ end
 	local spline = CatRom.new({...})
 
 	local tweenInfo = TweenInfo.new()
-	local callback = function(spline, t)
-		part.CFrame = spline:SolveCFrameRMF(t)
+	local callback = function(segment, t)
+		part.CFrame = segment:SolveCFrameRMF(t)
 	end
 
 	local tween = spline:CreateTween(tweenInfo, callback, 0, 1, true)
@@ -786,7 +785,7 @@ end
 ]=]
 function CatRom:CreateTween(
 	tweenInfo: TweenInfo,
-	callback: (Types.Spline, number) -> (),
+	callback: (Types.Segment, number) -> (),
 	from: number?,
 	to: number?,
 	unitSpeed: boolean?
@@ -800,11 +799,11 @@ function CatRom:CreateTween(
 	local tween = TweenService:Create(numberValue, tweenInfo, { Value = to })
 
 	local conn = numberValue:GetPropertyChangedSignal("Value"):Connect(function()
-		-- TODO: GetSplineAtTime can benefit from knowing the previous spline
+		-- TODO: GetSegmentAtTime can benefit from knowing the previous segment
 		-- and time
 		local t = numberValue.Value
-		local spline, splineTime = self:GetSplineAtTime(t)
-		callback(spline, if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+		local segment, segmentTime = self:GetSegmentAtTime(t)
+		callback(segment, if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 	end)
 
 	tween.Completed:Once(function()

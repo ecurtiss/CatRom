@@ -20,16 +20,16 @@ local MAX_NEWTON_ITERATIONS = 16
 local EPSILON = 2e-7
 
 --[=[
-	@class Spline
+	@class Segment
 
 	A single segment of a Catmull-Rom spline that interpolates two control
 	points. [CatRom:SolveBulk] and [CatRom:CreateTween] are the only methods
-	that expose a [Spline].
+	that expose a [Segment].
 ]=]
-local Spline: Types.SplineMt = {} :: Types.SplineMt
-Spline.__index = Spline
+local Segment: Types.SegmentMt = {} :: Types.SegmentMt
+Segment.__index = Segment
 
-function Spline.new(
+function Segment.new(
 	a: Types.Vector,
 	b: Types.Vector,
 	c: Types.Vector,
@@ -58,7 +58,7 @@ function Spline.new(
 		q1 = q1,
 		q2 = q2,
 		q3 = q3,
-	}, Spline)
+	}, Segment)
 
 	if not length then
 		self.length = self:SolveLength()
@@ -71,32 +71,32 @@ end
 -- Basic methods ---------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-function Spline:SolvePosition(t: number): Types.Vector
+function Segment:SolvePosition(t: number): Types.Vector
 	-- r(t) using Horner's method
 	return self.d + t * (self.c + t * (self.b + t * self.a))
 end
 
-function Spline:SolveVelocity(t: number): Types.Vector
+function Segment:SolveVelocity(t: number): Types.Vector
 	-- r'(t) using Horner's method
 	return self.c + t * (2 * self.b + t * 3 * self.a)
 end
 
-function Spline:SolveAcceleration(t: number): Types.Vector
+function Segment:SolveAcceleration(t: number): Types.Vector
 	-- r''(t)
 	return 6 * self.a * t + 2 * self.b
 end
 
-function Spline:SolveJerk(): Types.Vector
+function Segment:SolveJerk(): Types.Vector
 	-- r'''(t)
 	return 6 * self.a
 end
 
-function Spline:SolveTangent(t: number): Types.Vector
+function Segment:SolveTangent(t: number): Types.Vector
 	-- T(t) = r'(t) / |r'(t)|
 	return self:SolveVelocity(t).Unit
 end
 
-function Spline:SolveNormal(t: number): Types.Vector
+function Segment:SolveNormal(t: number): Types.Vector
 	if self.type == "Vector2" then
 		local tangent = self:SolveTangent(t)
 		return Vector2.new(-tangent.Y, tangent.X)
@@ -112,13 +112,13 @@ function Spline:SolveNormal(t: number): Types.Vector
 	end
 end
 
-function Spline:SolveBinormal(t: number): Vector3
+function Segment:SolveBinormal(t: number): Vector3
 	assert(self.type ~= "Vector2", "SolveBinormal is undefined on Vector2 splines")
 	-- T(t) x N(t)
 	return self:SolveTangent(t):Cross(self:SolveNormal(t))
 end
 
-function Spline:SolveCurvature(t: number): number
+function Segment:SolveCurvature(t: number): number
 	if self.type == "Vector2" then
 		local vel = self:SolveVelocity(t)
 		local acc = self:SolveAcceleration(t)
@@ -134,7 +134,7 @@ function Spline:SolveCurvature(t: number): number
 	end
 end
 
-function Spline:SolveTorsion(t: number): number
+function Segment:SolveTorsion(t: number): number
 	assert(self.type ~= "Vector2", "SolveTorsion is undefined on Vector2 splines")
 
 	local vel = self:SolveVelocity(t)
@@ -158,7 +158,7 @@ local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): C
 	end
 end
 
-function Spline:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
+function Segment:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameLookAlong is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
@@ -170,7 +170,7 @@ function Spline:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
 	end
 end
 
-function Spline:SolveCFrameFrenet(t: number): CFrame
+function Segment:SolveCFrameFrenet(t: number): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameFrenet is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
@@ -181,7 +181,7 @@ function Spline:SolveCFrameFrenet(t: number): CFrame
 	return CFrame.fromMatrix(pos, binormal, normal)
 end
 
-function Spline:SolveCFrameSquad(t: number): CFrame
+function Segment:SolveCFrameSquad(t: number): CFrame
 	assert(self.type == "CFrame", "SolveCFrameSquad is only defined on CFrame splines")
 
 	local pos = self:SolvePosition(t)
@@ -220,8 +220,8 @@ end
 
 -- Uses the double reflection method to precompute rotation-minimizing frames
 -- Source: Wang, "Computation of Rotation Minimizing Frames" (2008)
-function Spline:PrecomputeRMFs(numFramesPerSpline: number, initialFrame: CFrame)
-	local rmfLUT = table.create(numFramesPerSpline + 1)
+function Segment:PrecomputeRMFs(numFrames: number, initialFrame: CFrame)
+	local rmfLUT = table.create(numFrames + 1)
 	rmfLUT[1] = initialFrame
 
 	local prevPos = initialFrame.Position
@@ -229,8 +229,8 @@ function Spline:PrecomputeRMFs(numFramesPerSpline: number, initialFrame: CFrame)
 	local prevUp = initialFrame.UpVector
 	local prevLook = initialFrame.LookVector
 
-	for i = 1, numFramesPerSpline do
-		local t = i / numFramesPerSpline
+	for i = 1, numFrames do
+		local t = i / numFrames
 		prevPos, prevRight, prevUp, prevLook, rmfLUT[i + 1] = doubleReflect(
 			prevPos,
 			prevRight,
@@ -243,7 +243,7 @@ function Spline:PrecomputeRMFs(numFramesPerSpline: number, initialFrame: CFrame)
 	self.rmfLUT = rmfLUT
 end
 
-function Spline:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
+function Segment:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameRMF is undefined on Vector2 splines")
 	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRMFs before using SolveCFrameRMF")
 
@@ -287,7 +287,7 @@ end
 -- Numerical methods -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
-function Spline:SolveLength(from: number?, to: number?): number
+function Segment:SolveLength(from: number?, to: number?): number
 	local a = from or 0
 	local b = to or 1
 	a, b = math.min(a, b), math.max(a, b)
@@ -301,20 +301,20 @@ function Spline:SolveLength(from: number?, to: number?): number
 	end, a, b)
 end
 
-local function addBoundingBoxCandidate(a, b, c, candidates, spline)
+local function addBoundingBoxCandidate(a, b, c, candidates, segment)
 	local t1, t2 = Utils.SolveQuadratic(a, b, c)
 
 	if t1 ~= nil then
 		if t1 >= 0 and t1 <= 1 then
-			table.insert(candidates, spline:SolvePosition(t1))
+			table.insert(candidates, segment:SolvePosition(t1))
 		end
 		if t2 ~= nil and t2 >= 0 and t2 <= 1 then
-			table.insert(candidates, spline:SolvePosition(t2))
+			table.insert(candidates, segment:SolvePosition(t2))
 		end
 	end
 end
 
-function Spline:SolveBoundingBox(): (Types.Vector, Types.Vector)
+function Segment:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	-- First derivative coefficients
 	local a1 = 3 * self.a
 	local b1 = 2 * self.b
@@ -339,8 +339,8 @@ end
 --------------------------------------------------------------------------------
 
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
--- yields the point s of the way along the spline.
-function Spline:Reparametrize(s: number): number
+-- yields the point s of the way along the segment.
+function Segment:Reparametrize(s: number): number
 	assert(s >= 0 and s <= 1, "Time must be in [0, 1]")
 
 	if s == 0 or s == 1 then
@@ -388,7 +388,7 @@ end
 -- Performs the actual arc length reparametrization
 -- s = (1/L) * \int_{0}^{t} |r'(u)|du = (1/L) * (F(t) - F(0)) = F(t)/L
 -- where t is solved as the root-finding problem f(t) = F(t)/L - s = 0.
-function Spline:_ReparametrizeNewtonBisection(s: number): number
+function Segment:_ReparametrizeNewtonBisection(s: number): number
 	local length = self.length
 
 	if s == 0 or s == 1 then
@@ -441,7 +441,7 @@ function Spline:_ReparametrizeNewtonBisection(s: number): number
 	return (lower + upper) / 2
 end
 
-function Spline:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: boolean, degree: number)
+function Segment:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: boolean, degree: number)
 	self.chebIsLUT = useChebAsLUT
 
 	if precomputeNow then
@@ -452,7 +452,7 @@ function Spline:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: bo
 	end
 end
 
-function Spline:_GetChebyshevInterpolant(degree: number)
+function Segment:_GetChebyshevInterpolant(degree: number)
 	local interpolant = function(u)
 		return self:SolveVelocity(u).Magnitude
 	end
@@ -464,4 +464,4 @@ function Spline:_GetChebyshevInterpolant(degree: number)
 	return cheb:Invert()
 end
 
-return Spline
+return Segment

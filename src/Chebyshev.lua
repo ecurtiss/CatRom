@@ -8,7 +8,7 @@ local MAX_REGULA_FALSI_ITERATIONS = 10
 	@class Chebyshev
 	@ignore
 	
-	Interpolates the arc length function of a spline using a Chebyshev
+	Interpolates the arc length function of a spline segment using a Chebyshev
 	polynomial. Extracted from work by DarkInfernoDrago
 	(https://github.com/rbxmath/rbxmath).
 ]=]
