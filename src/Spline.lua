@@ -261,10 +261,14 @@ function Spline:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
 	local tangent = self:SolveTangent(t)
 
 	if pos:FuzzyEq(prevFrame.Position, EPSILON) then
-		if tangent:FuzzyEq(prevFrame.LookVector, EPSILON) then
+		local prevTangent = prevFrame.LookVector
+
+		if tangent:FuzzyEq(prevTangent, EPSILON) then
 			return prevFrame
 		else
-			error("prevFrame too close to new frame")
+			local axis = prevTangent:Cross(tangent)
+			local angle = prevTangent:Angle(tangent)
+			return CFrame.fromAxisAngle(axis, angle) * prevFrame.Rotation + pos
 		end
 	end
 
