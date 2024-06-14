@@ -188,16 +188,14 @@ end
 	Returns the jerk at time `t`.
 
 	@param t -- Time
-	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
 	@tag Essentials
 ]=]
-function CatRom:SolveJerk(t: number, unitSpeed: boolean?): Types.Vector
-	local spline, splineTime = self:GetSplineAtTime(t)
-	return spline:SolveJerk(if unitSpeed then spline:Reparametrize(splineTime) else splineTime)
+function CatRom:SolveJerk(t: number): Types.Vector
+	return self:GetSplineAtTime(t):SolveJerk()
 end
 
 --[=[

@@ -79,7 +79,7 @@ export type CatRomMt = {
 	SolvePosition:         (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
 	SolveVelocity:         (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
 	SolveAcceleration:     (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
-	SolveJerk:             (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
+	SolveJerk:             (self: CatRom, t: number) -> Vector,
 	SolveTangent:          (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
 	SolveNormal:           (self: CatRom, t: number, unitSpeed: boolean?) -> Vector,
 	SolveBinormal:         (self: CatRom, t: number, unitSpeed: boolean?) -> Vector3,
