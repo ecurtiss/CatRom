@@ -433,7 +433,7 @@ function Spline:_ReparametrizeNewtonBisection(s: number): number
 		end
 	end
 
-	warn("Exceeded maximum Newton iterations")
+	warn("Reached maximum Newton iterations")
 	return (lower + upper) / 2
 end
 

@@ -150,7 +150,7 @@ function Chebyshev:Solve(y: number): number
 		end
 	end
 
-	warn("Exceeded maximum regula falsi iterations")
+	warn("Reached maximum regula falsi iterations")
 	return (leftBound + rightBound) / 2
 end
 
