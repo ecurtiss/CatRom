@@ -162,12 +162,11 @@ function Spline:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameLookAlong is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
-	local tangent = self:SolveVelocity(t)
-
-	if tangent.Magnitude == 0 then -- Spline is a point
+	
+	if self.length == 0 then -- Spline is a point
 		return solveCFrameForPointSpline(pos, self.q0)
 	else
-		return CFrame.lookAlong(pos, tangent, upVector or Vector3.yAxis)
+		return CFrame.lookAlong(pos, self:SolveVelocity(t), upVector or Vector3.yAxis)
 	end
 end
 
@@ -176,14 +175,10 @@ function Spline:SolveCFrameFrenet(t: number): CFrame
 
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveTangent(t)
+	local normal = self:SolveNormal(t)
+	local binormal = tangent:Cross(normal)
 
-	if tangent.Magnitude == 0 then -- Spline is a point
-		return solveCFrameForPointSpline(pos, self.q0)
-	else
-		local normal = self:SolveNormal(t)
-		local binormal = tangent:Cross(normal)
-		return CFrame.fromMatrix(pos, binormal, normal)
-	end
+	return CFrame.fromMatrix(pos, binormal, normal)
 end
 
 function Spline:SolveCFrameSquad(t: number): CFrame
