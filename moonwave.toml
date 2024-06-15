@@ -1,6 +1,7 @@
 apiCategories = [
-	"Essentials",
+	"Basics",
 	"Moving frames",
 	"Piecewise",
-	"Precomputes"
+	"Precomputes",
+	"Extensions"
 ]

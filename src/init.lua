@@ -8,8 +8,21 @@ local DEFAULT_CHEB_DEGREE = 8
 local DEFAULT_RMF_PRECOMPUTES = 4
 local EPSILON = 2e-7
 
---- @class CatRom
---- A Catmull-Rom spline.
+--[=[
+	@class CatRom
+	A Catmull-Rom spline.
+
+	:::note
+	The `Vector2`, `Vector3`, and `CFrame` tags indicate whether a method is
+	defined for the type of control points used to create the [CatRom].
+	:::
+	:::tip
+	You should call [CatRom:PrecomputeUnitSpeedData] immediately after
+	construction if you intend to do many computations with `unitSpeed` true
+	(where "many" is roughly 8 per segment). Doing so will drastically improve
+	the performance of reparametrizations with a small loss to accuracy.
+	:::
+]=]
 local CatRom: Types.CatRomMt = {} :: Types.CatRomMt
 CatRom.__index = CatRom
 
@@ -33,7 +46,7 @@ CatRom.__index = CatRom
 
 --- @prop segments {Segment}
 --- @within CatRom
---- The chain of segments that make up the full spline.
+--- The chain of interpolating segments that make up the full spline.
 
 -- Removes adjacent points that are fuzzy-equal
 local function getUniquePoints(points: {Types.Point}): {Types.Point}
@@ -54,7 +67,7 @@ local function getUniquePoints(points: {Types.Point}): {Types.Point}
 end
 
 --[=[
-	Instantiates a Catmull-Rom spline.
+	Instantiates a [CatRom].
 
 	@param points {Vector2} | {Vector3} | {CFrame} -- A list of points of the same type
 	@param alpha -- A number (usually in [0, 1]) that loosely affects the curvature of the spline at the control points (default: 0.5)
@@ -145,7 +158,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -161,7 +174,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveVelocity(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -177,7 +190,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -192,7 +205,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveJerk(t: number): Types.Vector
 	return self:GetSegmentAtTime(t):SolveJerk()
@@ -207,7 +220,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -225,7 +238,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -242,7 +255,7 @@ end
 	@return Vector3
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -257,7 +270,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveCurvature(t: number, unitSpeed: boolean?): number
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -271,7 +284,7 @@ end
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector3
 	@tag CFrame
-	@tag Essentials
+	@tag Basics
 ]=]
 function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
 	local segment, segmentTime = self:GetSegmentAtTime(t)
@@ -338,12 +351,12 @@ end
 	[CatRom:GetTransportInterpolant] and [CatRom:GetSlerpNormalsInterpolant]).
 
 	If you are tweening an RMF over time, then you can supply the RMF from the
-	previous frame for a better approximation. Doing so also avoids calling
-	[CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you do not
-	supply a previous frame and you have not yet called [CatRom:PrecomputeRMFs],
-	then [CatRom:PrecomputeRMFs] will be called for only the necessary segments.
+	previous point in time for a better approximation. Doing so also avoids
+	calling [CatRom:PrecomputeRMFs], which helps performance. Otherwise, if you
+	do not supply a previous frame and you have not yet called
+	[CatRom:PrecomputeRMFs], then [CatRom:PrecomputeRMFs] will be called for
+	only the necessary segments.
 
-	@error Bad input -- prevFrame too close to queried frame
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@param prevFrame -- A previous, nearby RMF
@@ -377,12 +390,17 @@ function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame
 end
 
 --[=[
-	Sweeps a [Vector3] or [CFrame] along a spline with minimal torsion. See
-	[CatRom:GetTransportInterpolant] if you intend to use this method in bulk.
+	Sweeps a [Vector3] or [CFrame] along the spline such that the result has
+	been twisted minimally around the spline.
 
 	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
 	the accuracy of the approximation—otherwise it will be called for you with
 	default values.
+
+	:::tip
+	See [CatRom:GetTransportInterpolant] if you intend to use this method in
+	bulk.
+	:::
 
 	@param data -- The data to sweep
 	@param from -- The time where the data comes from
@@ -390,7 +408,7 @@ end
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector3
 	@tag CFrame
-	@tag Moving frames
+	@tag Extensions
 ]=]
 function CatRom:Transport(
 	data: Vector3 | CFrame,
@@ -417,7 +435,7 @@ function CatRom:Transport(
 end
 
 --[=[
-	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
+	Returns a function that sweeps a [Vector3] or [CFrame] along the spline with
 	minimal torsion. You should use this method instead of [CatRom:Transport] if
 	you are doing transports in bulk, as the interpolant saves on CFrame
 	multiplies.
@@ -433,7 +451,7 @@ end
 	@return (number) -> Vector3 | CFrame -- A function that returns the transported data at a given time
 	@tag Vector3
 	@tag CFrame
-	@tag Moving frames
+	@tag Extensions
 ]=]
 function CatRom:GetTransportInterpolant(
 	data: Vector3 | CFrame,
@@ -503,19 +521,29 @@ end
 
 --[=[
 	Slerps the normal vectors `fromVector` and `toVector` at times `from` and
-	`to`, respectively. `fromVector` and `toVector` are projected to ensure that
-	they are normal to the spline. See [CatRom:GetSlerpNormalsInterpolant] if
-	you intend to use this method in bulk.
-
+	`to`, respectively, with progress `t` in [0, 1]. `fromVector` and `toVector`
+	are projected to ensure that they are normal to the spline.
+	
 	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
 	the accuracy of the approximation—otherwise it will be called for you with
 	default values.
 
+	:::tip
+	Try [CatRom:GetSlerpNormalsInterpolant] if you intend to use this method in
+	bulk.
+	:::
+
 	@error Bad fromVector -- fromVector cannot be tangent to the spline
 	@error Bad toVector -- toVector cannot be tangent to the spline
+	@param from -- Time
+	@param fromVector -- A vector that is normal to the spline at time `from`
+	@param to -- Time
+	@param toVector -- A vector that is normal to the spline at time `to`
+	@param t -- The progress of the slerp from `fromVector` to `toVector` in [0, 1]
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@tag Vector3
 	@tag CFrame
-	@tag Moving frames
+	@tag Extensions
 ]=]
 function CatRom:SlerpNormals(
 	from: number,
@@ -550,10 +578,15 @@ end
 
 	@error Bad fromVector -- fromVector cannot be tangent to the spline
 	@error Bad toVector -- toVector cannot be tangent to the spline
+	@param from -- Time
+	@param fromVector -- A vector that is normal to the spline at time `from`
+	@param to -- Time
+	@param toVector -- A vector that is normal to the spline at time `to`
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return (number) -> Vector3 -- A function that returns the interpolated normal at a given time
 	@tag Vector3
 	@tag CFrame
-	@tag Moving frames
+	@tag Extensions
 ]=]
 function CatRom:GetSlerpNormalsInterpolant(
 	from: number,
@@ -729,6 +762,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
+	@tag Basics
 ]=]
 function CatRom:SolveLength(from: number?, to: number?): number
 	local a = from or 0
@@ -771,6 +805,7 @@ end
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
+	@tag Extensions
 ]=]
 function CatRom:SolveBulk(
 	f: (segment: Types.Segment, t: number) -> (),
@@ -877,6 +912,11 @@ end
 	local tween = spline:CreateTween(tweenInfo, callback, 0, 1, true)
 	tween:Play()
 	```
+	
+	@tag Vector2
+	@tag Vector3
+	@tag CFrame
+	@tag Extensions
 ]=]
 function CatRom:CreateTween(
 	tweenInfo: TweenInfo,
