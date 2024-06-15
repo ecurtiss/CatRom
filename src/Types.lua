@@ -141,8 +141,8 @@ export type SegmentMt = {
 		pointType: PointType,
 		q0: Quaternion?,
 		q1: Quaternion?,
-		q2: Quaternion,
-		q3: Quaternion,
+		q2: Quaternion?,
+		q3: Quaternion?,
 		length: number?
 	) -> Segment,
 
