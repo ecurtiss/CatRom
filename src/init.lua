@@ -626,7 +626,8 @@ function CatRom:PrecomputeRMFs(numFramesPerSegment: number?, firstSegmentIndex: 
 
 	local prevFrame
 	if firstSegmentIndex == 1 then
-		prevFrame = CFrame.lookAlong(self:SolvePosition(0), self:SolveTangent(0))
+		local pos = self:SolvePosition(0)
+		prevFrame = if self.length == 0 then CFrame.new(pos) else CFrame.lookAlong(pos, self:SolveTangent(0))
 	else
 		prevFrame = self.segments[firstSegmentIndex - 1].rmfLUT[numFramesPerSegment + 1]
 	end

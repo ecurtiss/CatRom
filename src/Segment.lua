@@ -150,21 +150,13 @@ end
 -- Moving frame methods --------------------------------------------------------
 --------------------------------------------------------------------------------
 
-local function solveCFrameForPointSpline(pos: Vector3, rot: Types.Quaternion): CFrame
-	if rot then
-		return CFrame.new(pos.X, pos.Y, pos.Z, rot[2], rot[3], rot[4], rot[1])
-	else
-		return CFrame.new(pos)
-	end
-end
-
 function Segment:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameLookAlong is undefined on Vector2 splines")
 
 	local pos = self:SolvePosition(t)
 	
 	if self.length == 0 then -- Spline is a point
-		return solveCFrameForPointSpline(pos, self.q0)
+		return CFrame.new(pos)
 	else
 		return CFrame.lookAlong(pos, self:SolveVelocity(t), upVector or Vector3.yAxis)
 	end
@@ -192,7 +184,7 @@ function Segment:SolveCFrameSquad(t: number): CFrame
 		local qw, qx, qy, qz = Squad(q0, q1, self.q2, self.q3, t)
 		return CFrame.new(pos.X, pos.Y, pos.Z, qx, qy, qz, qw)
 	else -- Spline is a point
-		return solveCFrameForPointSpline(pos, q0)
+		return CFrame.new(pos.X, pos.Y, pos.Z, q0[2], q0[3], q0[4], q0[1])
 	end
 end
 
@@ -246,6 +238,10 @@ end
 function Segment:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
 	assert(self.type ~= "Vector2", "SolveCFrameRMF is undefined on Vector2 splines")
 	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRMFs before using SolveCFrameRMF")
+
+	if self.length == 0 then -- Spline is a point
+		return prevFrame or self.rmfLUT[1]
+	end
 
 	if not prevFrame then
 		local prevFrameIndex = math.floor(t * (#self.rmfLUT - 1)) + 1
