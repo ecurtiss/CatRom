@@ -27,7 +27,7 @@ reparametrizations significantly faster at a small cost to accuracy.
 ## Installation
 CatRom is available on [Wally](https://wally.run/)
 ```toml
-catrom = "ecurtiss/catrom@=1.0.0-rc1"
+CatRom = "ecurtiss/catrom@=1.0.0-rc1"
 ```
 or as a `.rbxm` from the [Releases](https://github.com/ecurtiss/CatRom/releases) page.
 
@@ -59,7 +59,7 @@ spline:SolveBulk(function(segment, t)
 end, 100, 0, 1, true) -- Notice the `true` to indicate unit speed
 
 -- Smoothly sweep a CFrame from time 0 to 1 with minimal twisting
-local initialCF = CFrame.identity
+local initialCF = CFrame.new(spline:SolvePosition(0))
 local interpolant = spline:GetTransportInterpolant(initialCF, 0, 1)
 for i = 0, 100 do
 	local sweptCF = interpolant(i / 100)
