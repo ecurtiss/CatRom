@@ -1,95 +1,67 @@
-<div align="center">
-	<img src="https://github.com/ecurtiss/CatRom/blob/master/img/logo-light.svg#gh-light-mode-only" height="180" alt="CatRom logo"/>
-	<img src="https://github.com/ecurtiss/CatRom/blob/master/img/logo-dark.svg#gh-dark-mode-only" height="180" alt="CatRom logo"/>
-	<hr/>
-</div>
+<p align="center">
+	<h1>CatRom</h1>
+	Creates Catmull-Rom splines for Roblox
+</p>
 
-Creates [Catmull-Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
+## Introduction
+A [Catmull-Rom spline](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline) is a C¹ cubic spline that
+passes through each of its control points. It is a good choice for your project if you want a smooth curve that
+1. passes through every control point and
+2. does not need any extra data to sculpt it (cf. Bézier curves).
 
-The Catmull-Rom spline (CatRom) is a cousin of the popular Bézier curve that passes through all of its control points.
+In addition to the control points, CatRom provides two parameters to adjust the spline:
+1. `alpha`: A number (usually in [0, 1]) that loosely affects the curvature of the spline at the control points
+(default: 0.5)
+2. `tension`: A number (usually in [0, 1]) that makes the spline more or less taut (default: 0)
 
-<img src="img/tube.png" height="300"/>
+### Reparametrization
+By construction, a Catmull-Rom spline clusters points in regions of higher curvature. This effect is often visually
+unappealing, so CatRom offers a second parametrization—called a unit-speed (or arc length) parametrization—that yields
+equally-spaced points given equally-spaced times.
 
-## How to use
-The CatRom constructor takes 3 arguments:
-1. `points`: An array of Vector2s, Vector3s, or CFrames.
-2. `alpha` [optional]: A number (usually) in [0, 1] that determines the "parametrization" of the spline; defaults to 0.5.
-3. `tension` [optional]: A number (usually) in [0, 1] that determines how loose the spline is; defaults to 0.
+By default, passing `true` into a method with a `unitSpeed` argument performs a slow but highly accurate
+reparametrization. If you are calling a high volume of methods with `unitSpeed` true, then you should instead call
+`CatRom:PrecomputeUnitSpeedData` beforehand; after the initial cost of the precompute step, this method will make your
+reparametrizations significantly faster at a small cost to accuracy.
 
-The default `alpha` of 0.5 is the only way to avoid cusps and loops, as shown [in this paper](http://www.cemyuksel.com/research/catmullrom_param/).
+## Installation
+CatRom is available on [Wally](https://wally.run/)
+```toml
+catrom = "ecurtiss/catrom@=1.0.0-rc1"
+```
+or as a `.rbxm` from the [Releases](https://github.com/ecurtiss/CatRom/releases) page.
 
-## API
-___
-The `unitSpeed` argument in each `Solve` method determines whether the calculation uses a unit-speed parametrization of the spline. A unit-speed parametrization (also called an arc length parametrization) has a constant speed of 1, which yields equally spaced points given equally spaced times. This is often visually desirable but increases computation time.
-___
+## Getting started
+Here is an annotated example to get you started. Thorough documentation can be found
+[here](https://ecurtiss.github.io/CatRom/).
 ```lua
-CatRom.new(points: array, alpha: number?, tension: number?)
-```
-Creates a new Catmull-Rom spline from a list of Vector2s, Vector3s, or CFrames.
-```lua
-CatRom:SolvePosition(t: number, unitSpeed: boolean?)
-```
-Returns the position of the spline at time `t`.
-```lua
-CatRom:SolveCFrame(t: number, unitSpeed: boolean?)
-```
-Returns a CFrame at position `SolvePosition(t)` that faces in the direction of `SolveTangent(t)`.
-```lua
-CatRom:SolveRotCFrame(t: number, unitSpeed: boolean?)
-```
-Returns a CFrame at position `SolvePosition(t)` with orientation interpolated between the previous and next control points (provided your control points are CFrames). The interpolation uses spherical quadrangle interpolation.
-```lua
-CatRom:SolveVelocity(t: number, unitSpeed: boolean?)
-```
-Returns the velocity of the spline at time `t`.
-```lua
-CatRom:SolveAcceleration(t: number, unitSpeed: boolean?)
-```
-Returns the acceleration of the spline at time `t`.
-```lua
-CatRom:SolveTangent(t: number, unitSpeed: boolean?)
-```
-Returns the forward-facing, unit-length tangent vector at time `t`.
-```lua
-CatRom:SolveNormal(t: number, unitSpeed: boolean?)
-```
-Returns a unit-length vector at time `t` that is perpendicular to the spline and points in the direction of curvature. Returns `Vector3.new(nan, nan, nan)` when the curvature is 0.
-```lua
-CatRom:SolveBinormal(t: number, unitSpeed: boolean?)
-```
-Returns the cross product of `SolveTangent(t)` and `SolveNormal(t)`.
-```lua
-CatRom:SolveCurvature(t: number, unitSpeed: boolean?)
-```
-Returns the curvature of the spline at time `t`.
-```lua
-CatRom:SolveLength(a: number?, b: number?)
-```
-Returns the arc length between the points at times `a` and `b`.
-```lua
-CatRom:PrecomputeArcLengthParams(numIntervals: number?)
-```
-Computes a lookup table that makes `unitSpeed` calculations faster but less accurate.
+local CatRom = require(path.to.CatRom)
 
-## Performance Tips
-### 1. Solving with `unitSpeed`
-If you are calling many Solve methods with `unitSpeed` true, you should call `PrecomputeArcLengthParams()` immediately after construction. This will make your `unitSpeed` calls less accurate but cheaper to compute. The accuracy can be further tuned using the `numIntervals` argument; lower is faster and less accurate, higher is slower and more accurate (defaults to 16).
+local points = {...} -- A list of Vector2s, Vector3s, or CFrames
+local alpha = 0.5
+local tension = 0
 
-### 2. Repeated inputs
-If you are calling many methods on the *same* input like so
-```lua
-local t -- number in [0, 1]
-local catRom -- a CatRom object
-catRom:SolvePosition(t)
-catRom:SolveVelocity(t)
-catRom:SolveTangent(t)
-```
-then it is faster to instead do
-```lua
-local t -- number in [0, 1]
-local catRom -- a CatRom object
-local spline, splineTime = catRom:GetSplineAtTime(t)
-spline:SolvePosition(splineTime)
-spline:SolveVelocity(splineTime)
-spline:SolveTangent(splineTime)
+local spline = CatRom.new(points, alpha, tension)
+
+-- Get the position at a single time
+local pos = spline:SolvePosition(0.5)
+
+-- Get the position at 100 times between 0 and 1 (inclusive)
+spline:SolveBulk(function(segment, t)
+	local pos = segment:SolvePosition(t)
+end, 100, 0, 1)
+
+-- Repeat the above with a unit-speed parametrization
+spline:PrecomputeUnitSpeedData() -- Optional; makes the math faster for bulk computations
+local pos = spline:SolvePosition(0.5, true) -- Notice the `true`to indicate unit speed
+spline:SolveBulk(function(segment, t)
+	local pos = segment:SolvePosition(t)
+end, 100, 0, 1, true) -- Notice the `true` to indicate unit speed
+
+-- Smoothly sweep a CFrame from time 0 to 1 with minimal twisting
+local initialCF = CFrame.identity
+local interpolant = spline:GetTransportInterpolant(initialCF, 0, 1)
+for i = 0, 100 do
+	local sweptCF = interpolant(i / 100)
+end
 ```
