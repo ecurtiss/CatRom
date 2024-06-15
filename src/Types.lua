@@ -59,14 +59,30 @@ export type CatRomMt = {
 		prevFrame: CFrame?,
 		numFramesPerSegment: number?
 	) -> CFrame,
-	GetParallelTransportInterpolant: (
+	Transport: (
+		self: CatRom,
+		data: Vector3 | CFrame,
+		from: number?,
+		to: number?,
+		unitSpeed: boolean?
+	) -> Vector3 | CFrame,
+	GetTransportInterpolant: (
 		self: CatRom,
 		data: Vector3 | CFrame,
 		from: number?,
 		to: number?,
 		unitSpeed: boolean?
 	) -> (t: number) -> Vector3 | CFrame,
-	GetNormalVectorInterpolant: (
+	SlerpNormals: (
+		self: CatRom,
+		from: number,
+		fromVector: Vector3,
+		to: number,
+		toVector: Vector3,
+		t: number,
+		unitSpeed: boolean?
+	) -> Vector3,
+	GetSlerpNormalsInterpolant: (
 		self: CatRom,
 		from: number,
 		fromVector: Vector3,

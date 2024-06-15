@@ -332,7 +332,10 @@ end
 
 --[=[
 	Returns an approximate rotation-minimizing frame (RMF), i.e., a CFrame that
-	has minimal torsion when swept along the spline.
+	has minimal torsion when swept along the spline. This method is not useful
+	on its own, but it underlies the more powerful [CatRom:Transport] and
+	[CatRom:SlerpNormals] (and their bulk alternatives
+	[CatRom:GetTransportInterpolant] and [CatRom:GetSlerpNormalsInterpolant]).
 
 	If you are tweening an RMF over time, then you can supply the RMF from the
 	previous frame for a better approximation. Doing so also avoids calling
@@ -374,23 +377,65 @@ function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame
 end
 
 --[=[
-	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
-	minimal torsion.
-	
+	Sweeps a [Vector3] or [CFrame] along a spline with minimal torsion. See
+	[CatRom:GetTransportInterpolant] if you intend to use this method in bulk.
+
 	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
-	the accuracy of the rotation-minimizing frame approximation—otherwise it
-	will be called for you with default values.
+	the accuracy of the approximation—otherwise it will be called for you with
+	default values.
 
 	@param data -- The data to sweep
-	@param from -- The time to start at
-	@param to -- The time to end at
+	@param from -- The time where the data comes from
+	@param to -- The time to sweep to
+	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:Transport(
+	data: Vector3 | CFrame,
+	from: number?,
+	to: number?,
+	unitSpeed: boolean?
+): Vector3 | CFrame
+	from = from or 0
+	to = to or 1
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+
+	local dataType = typeof(data)
+	local dataIsVector3 = dataType == "Vector3"
+	assert(dataIsVector3 or dataType == "CFrame", "Bad data: Can only parallel transport Vector3s and CFrames")
+
+	local fromFrame = self:SolveCFrameRMF(from, unitSpeed)
+	local toFrame = self:SolveCFrameRMF(to, unitSpeed)
+
+	if dataIsVector3 then
+		return toFrame:VectorToWorldSpace(fromFrame:VectorToObjectSpace(data))
+	else
+		return toFrame * fromFrame:Inverse() * data
+	end
+end
+
+--[=[
+	Returns a function that sweeps a [Vector3] or [CFrame] along a spline with
+	minimal torsion. You should use this method instead of [CatRom:Transport] if
+	you are doing transports in bulk, as the interpolant saves on CFrame
+	multiplies.
+	
+	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
+	the accuracy of approximation—otherwise it will be called for you with
+	default values.
+
+	@param data -- The data to sweep
+	@param from -- The time where the data comes from
+	@param to -- The time to sweep to
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return (number) -> Vector3 | CFrame -- A function that returns the transported data at a given time
 	@tag Vector3
 	@tag CFrame
 	@tag Moving frames
 ]=]
-function CatRom:GetParallelTransportInterpolant(
+function CatRom:GetTransportInterpolant(
 	data: Vector3 | CFrame,
 	from: number?,
 	to: number?,
@@ -420,33 +465,14 @@ function CatRom:GetParallelTransportInterpolant(
 	end
 end
 
---[=[
-	Returns a function that interpolates the normal vectors `fromVector` and
-	`toVector` at times `from` and `to`, respectively. `fromVector` and
-	`toVector` are projected to ensure that they are normal to the spline.
-
-	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
-	the accuracy of the rotation-minimizing frame approximation—otherwise it
-	will be called for you with default values.
-
-	@error Bad fromVector -- fromVector cannot be tangent to the spline
-	@error Bad toVector -- toVector cannot be tangent to the spline
-	@return (number) -> Vector3 -- A function that returns the interpolated normal at a given time
-	@tag Vector3
-	@tag CFrame
-	@tag Moving frames
-]=]
-function CatRom:GetNormalVectorInterpolant(
+local function getSlerpNormalsData(
+	self: Types.CatRom,
 	from: number,
 	fromVector: Vector3,
 	to: number,
 	toVector: Vector3,
 	unitSpeed: boolean?
-): (t: number) -> Vector3
-	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
-
-	local totalTime = to - from
-
+)
 	local frameA = self:SolveCFrameRMF(from, unitSpeed)
 	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
 	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
@@ -472,6 +498,75 @@ function CatRom:GetNormalVectorInterpolant(
 		delta -= 2 * math.pi
 	end
 
+	return angleA, delta
+end
+
+--[=[
+	Slerps the normal vectors `fromVector` and `toVector` at times `from` and
+	`to`, respectively. `fromVector` and `toVector` are projected to ensure that
+	they are normal to the spline. See [CatRom:GetSlerpNormalsInterpolant] if
+	you intend to use this method in bulk.
+
+	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
+	the accuracy of the approximation—otherwise it will be called for you with
+	default values.
+
+	@error Bad fromVector -- fromVector cannot be tangent to the spline
+	@error Bad toVector -- toVector cannot be tangent to the spline
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:SlerpNormals(
+	from: number,
+	fromVector: Vector3,
+	to: number,
+	toVector: Vector3,
+	t: number,
+	unitSpeed: boolean?
+): Vector3
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+
+	local angleA, delta = getSlerpNormalsData(self, from, fromVector, to, toVector, unitSpeed)
+	local totalTime = to - from
+
+	local frameT = self:SolveCFrameRMF(from + t * totalTime, unitSpeed)
+	local angleT = angleA + t * delta
+	local normalT = math.cos(angleT) * frameT.RightVector + math.sin(angleT) * frameT.UpVector
+
+	return normalT
+end
+
+--[=[
+	Returns a function that interpolates the normal vectors `fromVector` and
+	`toVector` at times `from` and `to`, respectively. `fromVector` and
+	`toVector` are projected to ensure that they are normal to the spline.
+	You should use this method instead of [CatRom:SlerpNormals] if you are
+	doing slerps in bulk, as the interpolant saves on Vector operations.
+
+	You should call [CatRom:PrecomputeRMFs] beforehand if you want to control
+	the accuracy of the approximation—otherwise it will be called for you with
+	default values.
+
+	@error Bad fromVector -- fromVector cannot be tangent to the spline
+	@error Bad toVector -- toVector cannot be tangent to the spline
+	@return (number) -> Vector3 -- A function that returns the interpolated normal at a given time
+	@tag Vector3
+	@tag CFrame
+	@tag Moving frames
+]=]
+function CatRom:GetSlerpNormalsInterpolant(
+	from: number,
+	fromVector: Vector3,
+	to: number,
+	toVector: Vector3,
+	unitSpeed: boolean?
+): (t: number) -> Vector3
+	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+
+	local angleA, delta = getSlerpNormalsData(self, from, fromVector, to, toVector, unitSpeed)
+	local totalTime = to - from
+
 	return function(t: number): Vector3
 		local frameT = self:SolveCFrameRMF(from + t * totalTime, unitSpeed)
 		local angleT = angleA + t * delta
@@ -481,8 +576,8 @@ function CatRom:GetNormalVectorInterpolant(
 end
 
 --[=[
-	Precomputes a discrete approximation of a rotation-minimizing frame (RMF) along
-	the spline.
+	Precomputes a discrete approximation of a moving rotation-minimizing frame
+	(RMF) along the spline.
 
 	@param numFramesPerSegment -- The number of discrete approximations in each segment (default: 4)
 	@param firstSegmentIndex -- The index of the first segment to compute RMFs on (default: 1)
