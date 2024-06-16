@@ -49,13 +49,43 @@ end
 --- Extracts the position and rotation of a point. Only points of type CFrame
 --- have a rotational component.
 function Utils.SeparatePositionAndRotation(point: Types.Point, pointType: Types.PointType): (Types.Point, Types.Quaternion?)
-	if pointType == "Vector2" or pointType == "Vector3" then
-		return point
-	elseif pointType == "CFrame" then
-		return point.Position, Utils.CFrameToQuaternion(point)
+	if pointType == "CFrame" then
+		return (point :: CFrame).Position, Utils.CFrameToQuaternion(point :: CFrame)
 	else
-		error("Bad inputs")
+		return point
 	end
+end
+
+function Utils.Lerp(a: Types.Point, b: Types.Point, t: number): Types.Point
+	return if typeof(a) == "number" then a + (b - a) * t else a:Lerp(b, t)
+end
+
+function Utils.FuzzyEq(a: Types.Point, b: Types.Point, eps: number): boolean
+	return if typeof(a) == "number"
+		then a == b or math.abs(a - b) <= (math.abs(a) + 1) * eps
+		else a:FuzzyEq(b, eps)
+end
+
+function Utils.Magnitude(v: Types.Vector): number
+	return if typeof(v) == "number" then math.abs(v) else v.Magnitude
+end
+
+function Utils.Unit(v: Types.Vector): Types.Vector
+	return if typeof(v) == "number" then math.sign(v) else v.Unit
+end
+
+function Utils.Min(points: {Types.Vector}): Types.Vector
+	local firstPoint = points[1]
+	return if typeof(firstPoint) == "number"
+		then math.min(table.unpack(points))
+		else firstPoint:Min(table.unpack(points))
+end
+
+function Utils.Max(points: {Types.Vector}): Types.Vector
+	local firstPoint = points[1]
+	return if typeof(firstPoint) == "number"
+		then math.max(table.unpack(points))
+		else firstPoint:Max(table.unpack(points))
 end
 
 return Utils

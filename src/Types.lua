@@ -1,6 +1,6 @@
-export type Point = Vector2 | Vector3 | CFrame
-export type PointType = "Vector2" | "Vector3" | "CFrame"
-export type Vector = Vector2 | Vector3
+export type Point = number | Vector2 | Vector3 | CFrame
+export type PointType = "number" | "Vector2" | "Vector3" | "CFrame"
+export type Vector = number | Vector2 | Vector3
 export type Quaternion = { number } -- {w, x, y, z}
 
 export type CatRom = typeof(setmetatable(
@@ -121,7 +121,7 @@ export type Segment = typeof(setmetatable(
 		c: Vector,
 		d: Vector,
 
-		-- Rotations (nil if type is Vector2 or Vector3)
+		-- Rotations (nil if type is not CFrame)
 		q0: Quaternion?,
 		q1: Quaternion?,
 		q2: Quaternion?,

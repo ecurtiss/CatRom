@@ -1,6 +1,7 @@
 local TweenService = game:GetService("TweenService")
 local SegmentFactory = require(script.SegmentFactory)
 local Types = require(script.Types)
+local Utils = require(script.Utils)
 
 local DEFAULT_ALPHA = 0.5
 local DEFAULT_TENSION = 0
@@ -13,8 +14,9 @@ local EPSILON = 2e-7
 	A Catmull-Rom spline.
 
 	:::note
-	The `Vector2`, `Vector3`, and `CFrame` tags indicate whether a method is
-	defined for the type of control points used to create the [CatRom].
+	The `number`, `Vector2`, `Vector3`, and `CFrame` tags indicate whether a
+	method is defined for the type of control points used to create the
+	[CatRom].
 	:::
 	:::tip
 	You should call [CatRom:PrecomputeUnitSpeedData] immediately after
@@ -26,7 +28,7 @@ local EPSILON = 2e-7
 local CatRom: Types.CatRomMt = {} :: Types.CatRomMt
 CatRom.__index = CatRom
 
---- @type Vector Vector2 | Vector3
+--- @type Vector number | Vector2 | Vector3
 --- @within CatRom
 
 --- @prop knots {number}
@@ -56,7 +58,7 @@ local function getUniquePoints(points: {Types.Point}): {Types.Point}
 
 	for j = 2, #points do
 		local point = points[j]
-		if not point:FuzzyEq(prevPoint, EPSILON) then
+		if not Utils.FuzzyEq(point, prevPoint, EPSILON) then
 			uniquePoints[i] = point
 			i += 1
 			prevPoint = point
@@ -69,11 +71,12 @@ end
 --[=[
 	Instantiates a [CatRom].
 
-	@param points {Vector2} | {Vector3} | {CFrame} -- A list of points of the same type
+	@param points {number | Vector2 | Vector3 | CFrame} -- A list of points of the same type
 	@param alpha -- A number (usually in [0, 1]) that loosely affects the curvature of the spline at the control points (default: 0.5)
 	@param tension -- A number (usually in [0, 1]) that changes how taut the spline is (1 gives straight lines) (default: 0)
 	@param loops -- Whether the spline should form a smooth, closed loop
 	@return CatRom
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -90,8 +93,8 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	assert(#points > 0, "Points table cannot be empty")
 	
 	local pointType = typeof(points[1])
-	assert(pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
-		"Points must be a table of Vector2s, Vector3s, or CFrames")
+	assert(pointType == "number" or pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
+		"Points must be a table of numbers, Vector2s, Vector3s, or CFrames")
 	for _, point in points do
 		assert(typeof(point) == pointType, "All points must have the same type")
 	end
@@ -99,7 +102,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	-- Get points
 	points = getUniquePoints(points)
 
-	if loops and not points[1]:FuzzyEq(points[#points], EPSILON) then
+	if loops and not Utils.FuzzyEq(points[1], points[#points], EPSILON) then
 		table.insert(points, points[1])
 	end
 
@@ -155,6 +158,7 @@ end
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -171,6 +175,7 @@ end
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -187,6 +192,7 @@ end
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -202,6 +208,7 @@ end
 
 	@param t -- Time
 	@return Vector
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -217,6 +224,7 @@ end
 	@param t -- Time
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
 	@return Vector
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -670,6 +678,7 @@ end
 	@return Segment -- The interpolant S_j
 	@return number -- The time (t - a) / (b - a)
 	@return number -- The index j
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -733,6 +742,7 @@ end
 	@param when -- When the cheb should be computed: "now" is right now (useful for doing bulk solves immediately), "on demand" is as-needed (useful for doing bulk method calls over time)
 	@param strategy -- Whether the cheb gets used as a lookup table ("fast") or evaluated as a polynomial ("accurate")
 	@param degree -- The degree of the chebyshev polynomial; higher is more accurate but slower (default: 8)
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -760,6 +770,7 @@ end
 
 	@param from -- The time to start at (default: 0)
 	@param to -- The time to end at (default: 1)
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -803,6 +814,7 @@ end
 	@param from -- The time to start at (default: 0)
 	@param to -- The time to end at (default: 1)
 	@param unitSpeed -- Whether the spline has unit speed (default: `false`)
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
@@ -873,26 +885,23 @@ end
 
 	@return Vector -- The minimum corner
 	@return Vector -- The maximum corner
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
 ]=]
 function CatRom:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	local segments = self.segments
-	local n = #segments - 1
+	local n = #segments
 
-	local firstMin, firstMax = segments[1]:SolveBoundingBox()
 	local minima = table.create(n)
 	local maxima = table.create(n)
 
 	for i = 1, n do
-		minima[i], maxima[i] = segments[i + 1]:SolveBoundingBox()
+		minima[i], maxima[i] = segments[i]:SolveBoundingBox()
 	end
 
-	local min = firstMin:Min(table.unpack(minima))
-	local max = firstMax:Max(table.unpack(maxima))
-
-	return min, max
+	return Utils.Min(minima), Utils.Max(maxima)
 end
 
 --[=[
@@ -914,6 +923,7 @@ end
 	tween:Play()
 	```
 	
+	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame

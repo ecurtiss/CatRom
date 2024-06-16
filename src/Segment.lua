@@ -93,10 +93,12 @@ end
 
 function Segment:SolveTangent(t: number): Types.Vector
 	-- T(t) = r'(t) / |r'(t)|
-	return self:SolveVelocity(t).Unit
+	return Utils.Unit(self:SolveVelocity(t))
 end
 
 function Segment:SolveNormal(t: number): Types.Vector
+	assert(self.type ~= "number", "SolveNormal is undefined on number splines")
+
 	if self.type == "Vector2" then
 		local tangent = self:SolveTangent(t)
 		return Vector2.new(-tangent.Y, tangent.X)
@@ -113,12 +115,14 @@ function Segment:SolveNormal(t: number): Types.Vector
 end
 
 function Segment:SolveBinormal(t: number): Vector3
-	assert(self.type ~= "Vector2", "SolveBinormal is undefined on Vector2 splines")
+	assert(self.type == "Vector3" or self.type == "CFrame", "SolveBinormal is only defined on Vector3 and CFrame splines")
 	-- T(t) x N(t)
 	return self:SolveTangent(t):Cross(self:SolveNormal(t))
 end
 
 function Segment:SolveCurvature(t: number): number
+	assert(self.type ~= "number", "SolveCurvature is undefined on number splines")
+
 	if self.type == "Vector2" then
 		local vel = self:SolveVelocity(t)
 		local acc = self:SolveAcceleration(t)
@@ -135,7 +139,7 @@ function Segment:SolveCurvature(t: number): number
 end
 
 function Segment:SolveTorsion(t: number): number
-	assert(self.type ~= "Vector2", "SolveTorsion is undefined on Vector2 splines")
+	assert(self.type == "Vector3" or self.type == "CFrame", "SolveTorsion is only defined on Vector3 and CFrame splines")
 
 	local vel = self:SolveVelocity(t)
 	local acc = self:SolveAcceleration(t)
@@ -151,7 +155,7 @@ end
 --------------------------------------------------------------------------------
 
 function Segment:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrameLookAlong is undefined on Vector2 splines")
+	assert(self.type == "Vector3" or self.type == "CFrame", "SolveCFrameLookAlong is only defined on Vector3 and CFrame splines")
 
 	local pos = self:SolvePosition(t)
 	
@@ -163,7 +167,7 @@ function Segment:SolveCFrameLookAlong(t: number, upVector: Vector3?): CFrame
 end
 
 function Segment:SolveCFrameFrenet(t: number): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrameFrenet is undefined on Vector2 splines")
+	assert(self.type == "Vector3" or self.type == "CFrame", "SolveCFrameFrenet is only defined on Vector3 and CFrame splines")
 
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveTangent(t)
@@ -236,7 +240,7 @@ function Segment:PrecomputeRMFs(numFrames: number, initialFrame: CFrame)
 end
 
 function Segment:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
-	assert(self.type ~= "Vector2", "SolveCFrameRMF is undefined on Vector2 splines")
+	assert(self.type == "Vector3" or self.type == "CFrame", "SolveCFrameRMF is only defined on Vector3 and CFrame splines")
 	assert(prevFrame or self.rmfLUT, "Must call PrecomputeRMFs before using SolveCFrameRMF")
 
 	if self.length == 0 then -- Spline is a point
@@ -283,6 +287,18 @@ end
 -- Numerical methods -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
+local function getLengthIntegrand(segment: Types.Segment): (number) -> number
+	if segment.type == "number" then
+		return function(x: number)
+			return math.abs(segment:SolveVelocity(x))
+		end
+	else
+		return function(x: number)
+			return segment:SolveVelocity(x).Magnitude
+		end
+	end
+end
+
 function Segment:SolveLength(from: number?, to: number?): number
 	local a = from or 0
 	local b = to or 1
@@ -290,11 +306,9 @@ function Segment:SolveLength(from: number?, to: number?): number
 
 	if a == 0 and b == 1 and self.length then
 		return self.length
+	else
+		return GaussLegendre.Ten(getLengthIntegrand(self), a, b)
 	end
-
-	return GaussLegendre.Ten(function(x)
-		return self:SolveVelocity(x).Magnitude
-	end, a, b)
 end
 
 local function addBoundingBoxCandidate(a, b, c, candidates, segment)
@@ -316,18 +330,20 @@ function Segment:SolveBoundingBox(): (Types.Vector, Types.Vector)
 	local b1 = 2 * self.b
 	local c1 = self.c
 
-	local candidates = { self:SolvePosition(0) }
-	addBoundingBoxCandidate(a1.X, b1.X, c1.X, candidates, self)
-	addBoundingBoxCandidate(a1.Y, b1.Y, c1.Y, candidates, self)
-	if self.type ~= "Vector2" then
+	local candidates = { self:SolvePosition(0), self:SolvePosition(1) }
+
+	if self.type == "number" then
+		addBoundingBoxCandidate(a1, b1, c1, candidates, self)
+	elseif self.type == "Vector2" then
+		addBoundingBoxCandidate(a1.X, b1.X, c1.X, candidates, self)
+		addBoundingBoxCandidate(a1.Y, b1.Y, c1.Y, candidates, self)
+	else
+		addBoundingBoxCandidate(a1.X, b1.X, c1.X, candidates, self)
+		addBoundingBoxCandidate(a1.Y, b1.Y, c1.Y, candidates, self)
 		addBoundingBoxCandidate(a1.Z, b1.Z, c1.Z, candidates, self)
 	end
 
-	local pos = self:SolvePosition(1)
-	local min = pos:Min(table.unpack(candidates))
-	local max = pos:Max(table.unpack(candidates))
-
-	return min, max
+	return Utils.Min(candidates), Utils.Max(candidates)
 end
 
 --------------------------------------------------------------------------------
@@ -395,10 +411,7 @@ function Segment:_ReparametrizeNewtonBisection(s: number): number
 
 	-- Hybrid of Newton's method and bisection
 	-- https://www.geometrictools.com/Documentation/MovingAlongCurveSpecifiedSpeed.pdf
-	local integrand = function(x)
-		return self:SolveVelocity(x).Magnitude
-	end
-
+	local integrand = getLengthIntegrand(self)
 	local t = s
 	local lower = 0
 	local upper = 1
@@ -415,7 +428,7 @@ function Segment:_ReparametrizeNewtonBisection(s: number): number
 		end
 
 		-- Compute next candidate via Newton's method
-		local g = self:SolveVelocity(t).Magnitude / length
+		local g = Utils.Magnitude(self:SolveVelocity(t)) / length
 		local candidate = t - f / g
 
 		if f > 0 then
@@ -449,12 +462,10 @@ function Segment:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: b
 end
 
 function Segment:_GetChebyshevInterpolant(degree: number)
-	local interpolant = function(u)
-		return self:SolveVelocity(u).Magnitude
-	end
+	local integrand = getLengthIntegrand(self)
 	local length = self.length
 	local cheb = Chebyshev.new(function(t)
-		return GaussLegendre.Ten(interpolant, 0, t) / length
+		return GaussLegendre.Ten(integrand, 0, t) / length
 	end, degree)
 
 	return cheb:Invert()

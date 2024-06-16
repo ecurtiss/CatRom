@@ -72,9 +72,9 @@ local function createCentripetalSegments(
 	local p20 = p2 - p0
 	local p31 = p3 - p1
 
-	local p10Mag = math.sqrt(p10.Magnitude)
-	local p21Mag = math.sqrt(p21.Magnitude)
-	local p32Mag = math.sqrt(p32.Magnitude)
+	local p10Mag = math.sqrt(Utils.Magnitude(p10))
+	local p21Mag = math.sqrt(Utils.Magnitude(p21))
+	local p32Mag = math.sqrt(Utils.Magnitude(p32))
 
 	local p10Normalized = p10 / p10Mag
 	local p21Normalized = p21 / p21Mag
@@ -105,7 +105,7 @@ local function createCentripetalSegments(
 		p1, p2, p3 = p2, p3, positions[i]
 		p21, p32 = p32, p3 - p2
 		p31 = p3 - p1
-		p21Mag, p32Mag = p32Mag, math.sqrt(p32.Magnitude)
+		p21Mag, p32Mag = p32Mag, math.sqrt(Utils.Magnitude(p32))
 		p21Normalized, p32Normalized = p32Normalized, p32 / p32Mag
 		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
@@ -141,9 +141,9 @@ local function createSegments(
 	local p20 = p2 - p0
 	local p31 = p3 - p1
 
-	local p10Mag = p10.Magnitude ^ alpha
-	local p21Mag = p21.Magnitude ^ alpha
-	local p32Mag = p32.Magnitude ^ alpha
+	local p10Mag = Utils.Magnitude(p10) ^ alpha
+	local p21Mag = Utils.Magnitude(p21) ^ alpha
+	local p32Mag = Utils.Magnitude(p32) ^ alpha
 
 	local p10Normalized = p10 / p10Mag
 	local p21Normalized = p21 / p21Mag
@@ -174,7 +174,7 @@ local function createSegments(
 		p1, p2, p3 = p2, p3, positions[i]
 		p21, p32 = p32, p3 - p2
 		p31 = p3 - p1
-		p21Mag, p32Mag = p32Mag, p32.Magnitude ^ alpha
+		p21Mag, p32Mag = p32Mag, Utils.Magnitude(p32) ^ alpha
 		p21Normalized, p32Normalized = p32Normalized, p32 / p32Mag
 		m1, m2 = m2, p21Normalized - p31 / (p21Mag + p32Mag) + p32Normalized
 
@@ -216,7 +216,7 @@ local function createTautSegments(
 	local a = -2 * p21
 	local b = 3 * p21
 	local zero = p1 * 0
-	segments[1] = Segment.new(a, b, zero, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
+	segments[1] = Segment.new(a, b, zero, p1, pointType, q0, q1, q2, q3, Utils.Magnitude(p21))
 
 	for i = 4, #positions - 1 do
 		-- Slide window
@@ -232,7 +232,7 @@ local function createTautSegments(
 		p21 = p2 - p1
 		a = -2 * p21
 		b = 3 * p21
-		segments[segmentIndex] = Segment.new(a, b, zero, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
+		segments[segmentIndex] = Segment.new(a, b, zero, p1, pointType, q0, q1, q2, q3, Utils.Magnitude(p21))
 	end
 	
 	return segments
@@ -252,8 +252,8 @@ function SegmentFactory.CreateLineSegment(
 	point2: Types.Point,
 	pointType: Types.PointType
 ): Types.Segment
-	local point0 = point2:Lerp(point1, 2)
-	local point3 = point1:Lerp(point2, 2)
+	local point0 = Utils.Lerp(point2, point1, 2)
+	local point3 = Utils.Lerp(point1, point2, 2)
 
 	local _,  q0 = Utils.SeparatePositionAndRotation(point0, pointType)
 	local p1, q1 = Utils.SeparatePositionAndRotation(point1, pointType)
@@ -263,7 +263,7 @@ function SegmentFactory.CreateLineSegment(
 	local zero = p1 * 0
 	local p21 = p2 - p1
 
-	return Segment.new(zero, zero, p21, p1, pointType, q0, q1, q2, q3, p21.Magnitude)
+	return Segment.new(zero, zero, p21, p1, pointType, q0, q1, q2, q3, Utils.Magnitude(p21))
 end
 
 function SegmentFactory.CreateSegments(
@@ -283,8 +283,8 @@ function SegmentFactory.CreateSegments(
 		zerothPos, zerothQuat = Utils.SeparatePositionAndRotation(points[numPoints - 1], pointType)
 		veryLastPos, veryLastQuat = Utils.SeparatePositionAndRotation(points[2], pointType)
 	else
-		zerothPos, zerothQuat = Utils.SeparatePositionAndRotation(points[2]:Lerp(firstPoint, 2), pointType)
-		veryLastPos, veryLastQuat = Utils.SeparatePositionAndRotation(points[numPoints - 1]:Lerp(lastPoint, 2), pointType)
+		zerothPos, zerothQuat = Utils.SeparatePositionAndRotation(Utils.Lerp(points[2], firstPoint, 2), pointType)
+		veryLastPos, veryLastQuat = Utils.SeparatePositionAndRotation(Utils.Lerp(points[numPoints - 1], lastPoint, 2), pointType)
 	end
 
 	-- Separate positions and rotations of points (if applicable)
