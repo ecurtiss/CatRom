@@ -308,11 +308,6 @@ function SegmentFactory.CreateSegmentsWithKeyframes(
 ): {Types.Segment}
 	local positions, quats = getPaddedPositionsAndRotations(points, loops, pointType)
 
-	-- Fast track
-	if tension == 1 then
-		return createTautSegments(positions, pointType, quats)
-	end
-
 	local numKeyframes = #keyframes
 	local firstKeyframe = keyframes[1]
 	local lastKeyframe = keyframes[numKeyframes]
@@ -327,6 +322,18 @@ function SegmentFactory.CreateSegmentsWithKeyframes(
 	else
 		paddedKeyframes[1] = Utils.Lerp(keyframes[2], firstKeyframe, 2)
 		paddedKeyframes[numKeyframes + 2] = Utils.Lerp(keyframes[numKeyframes - 1], lastKeyframe, 2)
+	end
+
+	-- Fast track
+	if tension == 1 then
+		local segments = createTautSegments(positions, pointType, quats)
+		local keyframeSegments = createTautSegments(paddedKeyframes, "number")
+
+		for i, keyframeSegment in keyframeSegments do
+			segments[i]:_SetKeyframeSegment(keyframeSegment)
+		end
+
+		return segments
 	end
 
 	-- Scale keyframes for better-behaved splines

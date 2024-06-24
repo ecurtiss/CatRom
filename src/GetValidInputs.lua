@@ -28,6 +28,7 @@ return function(points: {Types.Point}, props: Types.CatRomProps?): (number, numb
 		assert(type(keyframes) == "table", "keyframes must be a table")
 		assert(#points == #keyframes, "#keyframes must equal #points")
 		assert(alpha == 0.5, "alpha must be 0.5 for a spline with keyframes")
+		assert(tension >= 0 and tension <= 1, "tension must be in [0, 1] for a spline with keyframes")
 		
 		local prevKeyframe = keyframes[1]
 		assert(prevKeyframe == 0, "First keyframe must be 0")

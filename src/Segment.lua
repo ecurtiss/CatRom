@@ -505,7 +505,7 @@ function Segment:_SetKeyframeSegment(keyframeSegment: Types.Segment)
 	-- (2) the centripetal parametrization guarantees no self-intersections
 	self.keyframeCheb = Chebyshev.new(function(t)
 		return (keyframeSegment:SolvePosition(t) - min) / width
-	end, 3):Invert()
+	end, Constants.DEFAULT_KEYFRAME_CHEB_DEGREE):Invert()
 end
 
 return Segment

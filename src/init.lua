@@ -730,7 +730,7 @@ end
 function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "fast" | "accurate"?,  degree: number?)
 	when = when or "now"
 	strategy = strategy or "fast"
-	degree = degree or Constants.DEFAULT_UNIT_SPEED_CHEB_DEGREE
+	degree = degree or Constants.DEFAULT_ARC_LENGTH_CHEB_DEGREE
 
 	assert(when == "now" or when == "on demand", "when must be \"now\" or \"on demand\"")
 	assert(strategy == "fast" or strategy == "accurate", "strategy must be \"fast\" or \"accurate\"")
