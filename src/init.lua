@@ -466,6 +466,7 @@ function CatRom:GetTransportInterpolant(
 	from = from or 0
 	to = to or 1
 	assert(from >= 0 and from <= 1 and to >= 0 and to <= 1, "Times must be in [0, 1]")
+	assert(from and to, "Appease type system")
 	
 	local dataType = typeof(data)
 	local dataIsVector3 = dataType == "Vector3"
@@ -627,6 +628,7 @@ function CatRom:PrecomputeRMFs(numFramesPerSegment: number?, firstSegmentIndex: 
 	numFramesPerSegment = if numFramesPerSegment then math.max(1, numFramesPerSegment) else Constants.DEFAULT_RMF_PRECOMPUTES
 	firstSegmentIndex = firstSegmentIndex or 1
 	lastSegmentIndex = lastSegmentIndex or #self.segments
+	assert(numFramesPerSegment and firstSegmentIndex and lastSegmentIndex, "Appease type system")
 
 	local prevFrame
 	if firstSegmentIndex == 1 then
