@@ -1,13 +1,9 @@
 local TweenService = game:GetService("TweenService")
+
+local Constants = require(script.Constants)
 local SegmentFactory = require(script.SegmentFactory)
 local Types = require(script.Types)
 local Utils = require(script.Utils)
-
-local DEFAULT_ALPHA = 0.5
-local DEFAULT_TENSION = 0
-local DEFAULT_CHEB_DEGREE = 8
-local DEFAULT_RMF_PRECOMPUTES = 4
-local EPSILON = 2e-7
 
 --[=[
 	@class CatRom
@@ -58,7 +54,7 @@ local function getUniquePoints(points: {Types.Point}): {Types.Point}
 
 	for j = 2, #points do
 		local point = points[j]
-		if not Utils.FuzzyEq(point, prevPoint, EPSILON) then
+		if not Utils.FuzzyEq(point, prevPoint, Constants.MACHINE_EPSILON) then
 			uniquePoints[i] = point
 			i += 1
 			prevPoint = point
@@ -82,8 +78,8 @@ end
 	@tag CFrame
 ]=]
 function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loops: boolean?): Types.CatRom
-	alpha = alpha or DEFAULT_ALPHA -- Parametrization exponent
-	tension = tension or DEFAULT_TENSION
+	alpha = alpha or Constants.DEFAULT_ALPHA -- Parametrization exponent
+	tension = tension or Constants.DEFAULT_TENSION
 	loops = not not loops
 
 	-- Check types
@@ -91,7 +87,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	assert(type(alpha) == "number", "Alpha must be a number")
 	assert(type(tension) == "number", "Tension must be a number")
 	assert(#points > 0, "Points table cannot be empty")
-	
+
 	local pointType = typeof(points[1])
 	assert(pointType == "number" or pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
 		"Points must be a table of numbers, Vector2s, Vector3s, or CFrames")
@@ -102,7 +98,7 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 	-- Get points
 	points = getUniquePoints(points)
 
-	if loops and not Utils.FuzzyEq(points[1], points[#points], EPSILON) then
+	if loops and not Utils.FuzzyEq(points[1], points[#points], Constants.MACHINE_EPSILON) then
 		table.insert(points, points[1])
 	end
 
@@ -503,7 +499,7 @@ local function getSlerpNormalsData(
 	local normalA = (fromVector - frameA.LookVector:Dot(fromVector) * frameA.LookVector).Unit
 	local angleA = normalA:Angle(frameA.RightVector, frameA.LookVector)
 
-	if normalA.Magnitude > EPSILON then
+	if normalA.Magnitude > Constants.MACHINE_EPSILON then
 		normalA = normalA.Unit
 	else
 		error("fromVector cannot be tangent to the curve")
@@ -513,7 +509,7 @@ local function getSlerpNormalsData(
 	local normalB = (toVector - frameB.LookVector:Dot(toVector) * frameB.LookVector).Unit
 	local angleB = normalB:Angle(frameB.RightVector, frameB.LookVector)
 
-	if normalB.Magnitude > EPSILON then
+	if normalB.Magnitude > Constants.MACHINE_EPSILON then
 		normalB = normalB.Unit
 	else
 		error("toVector cannot be tangent to the curve")
@@ -628,7 +624,7 @@ end
 	@tag Precomputes
 ]=]
 function CatRom:PrecomputeRMFs(numFramesPerSegment: number?, firstSegmentIndex: number?, lastSegmentIndex: number?)
-	numFramesPerSegment = if numFramesPerSegment then math.max(1, numFramesPerSegment) else DEFAULT_RMF_PRECOMPUTES
+	numFramesPerSegment = if numFramesPerSegment then math.max(1, numFramesPerSegment) else Constants.DEFAULT_RMF_PRECOMPUTES
 	firstSegmentIndex = firstSegmentIndex or 1
 	lastSegmentIndex = lastSegmentIndex or #self.segments
 
@@ -751,7 +747,7 @@ end
 function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "fast" | "accurate"?,  degree: number?)
 	when = when or "now"
 	strategy = strategy or "fast"
-	degree = degree or DEFAULT_CHEB_DEGREE
+	degree = degree or Constants.DEFAULT_UNIT_SPEED_CHEB_DEGREE
 
 	assert(when == "now" or when == "on demand", "when must be \"now\" or \"on demand\"")
 	assert(strategy == "fast" or strategy == "accurate", "strategy must be \"fast\" or \"accurate\"")

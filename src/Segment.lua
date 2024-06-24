@@ -11,13 +11,11 @@
 ]]
 
 local Chebyshev = require(script.Parent.Chebyshev)
+local Constants = require(script.Parent.Constants)
 local GaussLegendre = require(script.Parent.GaussLegendre)
 local Squad = require(script.Parent.Squad)
 local Types = require(script.Parent.Types)
 local Utils = require(script.Parent.Utils)
-
-local MAX_NEWTON_ITERATIONS = 16
-local EPSILON = 2e-7
 
 --[=[
 	@class Segment
@@ -252,7 +250,7 @@ function Segment:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
 		local prevFrameTime = (prevFrameIndex - 1) / (#self.rmfLUT - 1)
 		prevFrame = self.rmfLUT[prevFrameIndex]
 
-		if t - prevFrameTime < EPSILON then
+		if t - prevFrameTime < Constants.MACHINE_EPSILON then
 			return prevFrame
 		end
 	end
@@ -260,10 +258,10 @@ function Segment:SolveCFrameRMF(t: number, prevFrame: CFrame?): CFrame
 	local pos = self:SolvePosition(t)
 	local tangent = self:SolveTangent(t)
 
-	if pos:FuzzyEq(prevFrame.Position, EPSILON) then
+	if pos:FuzzyEq(prevFrame.Position, Constants.MACHINE_EPSILON) then
 		local prevTangent = prevFrame.LookVector
 
-		if tangent:FuzzyEq(prevTangent, EPSILON) then
+		if tangent:FuzzyEq(prevTangent, Constants.MACHINE_EPSILON) then
 			return prevFrame
 		else
 			local axis = prevTangent:Cross(tangent)
@@ -416,14 +414,14 @@ function Segment:_ReparametrizeNewtonBisection(s: number): number
 	local lower = 0
 	local upper = 1
 
-	for _ = 1, MAX_NEWTON_ITERATIONS do
+	for _ = 1, Constants.MAX_NEWTON_ITERATIONS do
 		-- It is mathematically equivalent to instead use
 		-- f = GaussLegendre.Ten(integrand, 0, t) - s * length
 		-- g = self:SolveVelocity(t).Magnitude
 		-- This has the benefit of being able to precompute s * length.
 		-- However, in practice, it converges slower.
 		local f =  GaussLegendre.Ten(integrand, 0, t) / length - s
-		if math.abs(f) < EPSILON then
+		if math.abs(f) < Constants.MACHINE_EPSILON then
 			return t
 		end
 

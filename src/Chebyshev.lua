@@ -1,8 +1,5 @@
+local Constants = require(script.Parent.Constants)
 local Types = require(script.Parent.Types)
-
-local SOLVE_TOLERANCE = 1e-4
-local GET_SOLVE_BOUNDS_TOLERANCE = 1e-6
-local MAX_REGULA_FALSI_ITERATIONS = 10
 
 --[=[
 	@class Chebyshev
@@ -96,14 +93,14 @@ function Chebyshev:GetSolveBounds(y: number): (number, number, number, number)
 	local gridValues = self.gridValues
 	local leftGridValue = 0
 
-	if math.abs(y) < SOLVE_TOLERANCE then
+	if math.abs(y) < Constants.SOLVE_TOLERANCE then
 		return 0, 0, -y, -y
 	end
 	
 	for i = 2, numGridPoints do
 		local rightGridValue = gridValues[i]
 
-		if math.abs(y - rightGridValue) < GET_SOLVE_BOUNDS_TOLERANCE then
+		if math.abs(y - rightGridValue) < Constants.MACHINE_EPSILON then
 			return self.grid[i], self.grid[i], rightGridValue - y, rightGridValue - y
 		elseif y > leftGridValue and y < rightGridValue then
 			return self.grid[i - 1], self.grid[i], leftGridValue - y, rightGridValue - y
@@ -129,7 +126,7 @@ function Chebyshev:Solve(y: number): number
 		return leftBound
 	end
 
-	for _ = 1, MAX_REGULA_FALSI_ITERATIONS do
+	for _ = 1, Constants.MAX_REGULA_FALSI_ITERATIONS do
 		local t = (leftBound * rightValue - rightBound * leftValue) / (rightValue - leftValue)
 		
 		-- Guard against floating point errors
@@ -139,7 +136,7 @@ function Chebyshev:Solve(y: number): number
 		
 		local f = self:Evaluate(t) - y
 		
-		if math.abs(f) < SOLVE_TOLERANCE then
+		if math.abs(f) < Constants.SOLVE_TOLERANCE then
 			return t
 		elseif f > 0 then
 			rightBound = t

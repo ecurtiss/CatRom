@@ -3,9 +3,8 @@
 -- Distributed under the MIT license; see full notice at the end of this file.
 -- github.com/Fraktality/squad
 
+local Constants = require(script.Parent.Constants)
 local Types = require(script.Parent.Types)
-
-local EPSILON = 1e-4
 
 local function InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
 	local w = w0*w1 + x0*x1 + y0*y1 + z0*z1
@@ -14,7 +13,7 @@ local function InverseLogProduct(w0, x0, y0, z0, w1, x1, y1, z1)
 	local z = w0*z1 + x0*y1 - y0*x1 - z0*w1
 
 	local v = math.sqrt(x^2 + y^2 + z^2)
-	local s = v > EPSILON and math.atan2(v, w)/(4*v) or 8/21 + w*(-27/140 + w*(8/105 - w/70))
+	local s = v > Constants.SQUAD_TOLERANCE and math.atan2(v, w)/(4*v) or 8/21 + w*(-27/140 + w*(8/105 - w/70))
 	return x*s, y*s, z*s
 end
 
@@ -34,7 +33,7 @@ local function GetControlRotation(w0, x0, y0, z0, w1, x1, y1, z1, w2, x2, y2, z2
 	local mz = bz0 + bz1
 
 	local n = math.sqrt(mx*mx + my*my + mz*mz)
-	local m = n > EPSILON and math.sin(n)/n or 1 + n*n*(n*n/120 - 1/6)
+	local m = n > Constants.SQUAD_TOLERANCE and math.sin(n)/n or 1 + n*n*(n*n/120 - 1/6)
 
 	local ew = math.cos(n)
 	local ex = m*mx
@@ -49,7 +48,7 @@ end
 
 local function Slerp(s, w0, x0, y0, z0, w1, x1, y1, z1, d)
 	local t0, t1
-	if d < 1 - EPSILON then
+	if d < 1 - Constants.SQUAD_TOLERANCE then
 		local d0 = y0*x1 + w0*z1 - x0*y1 - z0*w1
 		local d1 = y0*w1 - w0*y1 + z0*x1 - x0*z1
 		local d2 = y0*z1 - w0*x1 - z0*y1 + x0*w1
