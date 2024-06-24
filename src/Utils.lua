@@ -74,6 +74,10 @@ function Utils.Unit(v: Types.Vector): Types.Vector
 	return if typeof(v) == "number" then math.sign(v) else v.Unit
 end
 
+function Utils.Dot(a: Types.Vector, b: Types.Vector): number
+	return if typeof(a) == "number" then a * b else a:Dot(b)
+end
+
 function Utils.Min(points: {Types.Vector}): Types.Vector
 	local firstPoint = points[1]
 	return if typeof(firstPoint) == "number"

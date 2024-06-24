@@ -1,6 +1,7 @@
 local TweenService = game:GetService("TweenService")
 
 local Constants = require(script.Constants)
+local GetValidInputs = require(script.GetValidInputs)
 local SegmentFactory = require(script.SegmentFactory)
 local Types = require(script.Types)
 local Utils = require(script.Utils)
@@ -46,60 +47,37 @@ CatRom.__index = CatRom
 --- @within CatRom
 --- The chain of interpolating segments that make up the full spline.
 
--- Removes adjacent points that are fuzzy-equal
-local function getUniquePoints(points: {Types.Point}): {Types.Point}
-	local prevPoint = points[1]
-	local uniquePoints = {prevPoint}
-	local i = 2
-
-	for j = 2, #points do
-		local point = points[j]
-		if not Utils.FuzzyEq(point, prevPoint, Constants.MACHINE_EPSILON) then
-			uniquePoints[i] = point
-			i += 1
-			prevPoint = point
-		end
-	end
-
-	return uniquePoints
-end
-
 --[=[
 	Instantiates a [CatRom].
 
 	@param points {number | Vector2 | Vector3 | CFrame} -- A list of points of the same type
-	@param alpha -- A number (usually in [0, 1]) that loosely affects the curvature of the spline at the control points (default: 0.5)
-	@param tension -- A number (usually in [0, 1]) that changes how taut the spline is (1 gives straight lines) (default: 0)
-	@param loops -- Whether the spline should form a smooth, closed loop
-	@return CatRom
+	@param props
 	@tag number
 	@tag Vector2
 	@tag Vector3
 	@tag CFrame
 ]=]
-function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loops: boolean?): Types.CatRom
-	alpha = alpha or Constants.DEFAULT_ALPHA -- Parametrization exponent
-	tension = tension or Constants.DEFAULT_TENSION
-	loops = not not loops
-
-	-- Check types
-	assert(type(points) == "table", "Points must be a table")
-	assert(type(alpha) == "number", "Alpha must be a number")
-	assert(type(tension) == "number", "Tension must be a number")
-	assert(#points > 0, "Points table cannot be empty")
-
+function CatRom.new(
+	points: {Types.Point},
+	props: {
+		alpha: number?,
+		tension: number?,
+		loops: boolean?,
+		keyframes: {number}?
+	}?
+): Types.CatRom
+	local alpha, tension, loops, keyframes = GetValidInputs(points, props)
 	local pointType = typeof(points[1])
-	assert(pointType == "number" or pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
-		"Points must be a table of numbers, Vector2s, Vector3s, or CFrames")
-	for _, point in points do
-		assert(typeof(point) == pointType, "All points must have the same type")
-	end
 
-	-- Get points
-	points = getUniquePoints(points)
+	-- Get final list of points
+	if keyframes then
+		points = table.clone(points)
+	else
+		points = SegmentFactory.GetUniquePoints(points)
 
-	if loops and not Utils.FuzzyEq(points[1], points[#points], Constants.MACHINE_EPSILON) then
-		table.insert(points, points[1])
+		if loops and not Utils.FuzzyEq(points[1], points[#points], Constants.MACHINE_EPSILON) then
+			table.insert(points, points[1])
+		end
 	end
 
 	-- Early exits
@@ -116,24 +94,27 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 		}, CatRom)
 	end
 
-	-- Create segments
-	local segments = SegmentFactory.CreateSegments(points, alpha, tension, loops, pointType)
-	local numSegments = #segments
+	local segments = if keyframes
+		then SegmentFactory.CreateSegmentsWithKeyframes(points, tension, loops, pointType, keyframes)
+		else SegmentFactory.CreateSegments(points, alpha, tension, loops, pointType)
 
-	-- Tally length
 	local totalLength = 0
 	for _, segment in segments do
 		totalLength += segment.length
 	end
 
-	-- Create knot vector
-	local knots = table.create(numSegments + 1)
-	knots[numSegments + 1] = 1
-
-	local runningLength = 0
-	for i, segment in segments do
-		knots[i] = runningLength / totalLength
-		runningLength += segment.length
+	local knots
+	if keyframes then
+		knots = table.clone(keyframes)
+	else
+		knots = table.create(#points)
+		knots[#points] = 1
+	
+		local runningLength = 0
+		for i, segment in segments do
+			knots[i] = runningLength / totalLength
+			runningLength += segment.length
+		end
 	end
 
 	return setmetatable({
@@ -162,7 +143,7 @@ end
 ]=]
 function CatRom:SolvePosition(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolvePosition(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolvePosition(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -179,7 +160,7 @@ end
 ]=]
 function CatRom:SolveVelocity(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveVelocity(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveVelocity(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -196,7 +177,7 @@ end
 ]=]
 function CatRom:SolveAcceleration(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveAcceleration(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveAcceleration(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -228,7 +209,7 @@ end
 ]=]
 function CatRom:SolveTangent(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveTangent(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveTangent(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -246,7 +227,7 @@ end
 ]=]
 function CatRom:SolveNormal(t: number, unitSpeed: boolean?): Types.Vector
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveNormal(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveNormal(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -263,7 +244,7 @@ end
 ]=]
 function CatRom:SolveBinormal(t: number, unitSpeed: boolean?): Vector3
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveBinormal(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveBinormal(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -278,7 +259,7 @@ end
 ]=]
 function CatRom:SolveCurvature(t: number, unitSpeed: boolean?): number
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveCurvature(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveCurvature(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -292,7 +273,7 @@ end
 ]=]
 function CatRom:SolveTorsion(t: number, unitSpeed: boolean?): number
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveTorsion(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveTorsion(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -308,7 +289,7 @@ end
 ]=]
 function CatRom:SolveCFrameLookAlong(t: number, unitSpeed: boolean?, upVector: Vector3?): CFrame
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveCFrameLookAlong(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime, upVector)
+	return segment:SolveCFrameLookAlong(segment:Reparametrize(segmentTime, unitSpeed), upVector)
 end
 
 --[=[
@@ -326,7 +307,7 @@ end
 ]=]
 function CatRom:SolveCFrameFrenet(t: number, unitSpeed: boolean?): CFrame
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveCFrameFrenet(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveCFrameFrenet(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --[=[
@@ -340,7 +321,7 @@ end
 ]=]
 function CatRom:SolveCFrameSquad(t: number, unitSpeed: boolean?): CFrame
 	local segment, segmentTime = self:GetSegmentAtTime(t)
-	return segment:SolveCFrameSquad(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+	return segment:SolveCFrameSquad(segment:Reparametrize(segmentTime, unitSpeed))
 end
 
 --------------------------------------------------------------------------------
@@ -374,7 +355,7 @@ function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame
 	local segments = self.segments
 
 	if prevFrame then
-		return segment:SolveCFrameRMF(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime, prevFrame)
+		return segment:SolveCFrameRMF(segment:Reparametrize(segmentTime, unitSpeed), prevFrame)
 	end
 
 	-- Precompute only the necessary RMF LUTs
@@ -390,7 +371,7 @@ function CatRom:SolveCFrameRMF(t: number, unitSpeed: boolean?, prevFrame: CFrame
 		end
 	end
 
-	return segment:SolveCFrameRMF(if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime, prevFrame)
+	return segment:SolveCFrameRMF(segment:Reparametrize(segmentTime, unitSpeed), prevFrame)
 end
 
 --[=[
@@ -860,7 +841,7 @@ function CatRom:SolveBulk(
 		-- Run all samples in this segment
 		while nextSampleTime <= domainMax and nextSampleIndex < numSamples do
 			local t = (nextSampleTime - domainMin) / domainWidth
-			f(segment, if unitSpeed then segment:Reparametrize(t) else t)
+			f(segment, segment:Reparametrize(t, unitSpeed))
 			nextSampleTime = a + nextSampleIndex * lerpIncrement
 			nextSampleIndex += 1
 		end
@@ -947,7 +928,7 @@ function CatRom:CreateTween(
 		-- and time
 		local t = numberValue.Value
 		local segment, segmentTime = self:GetSegmentAtTime(t)
-		callback(segment, if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
+		callback(segment, segment:Reparametrize(segmentTime, unitSpeed))
 	end)
 
 	tween.Completed:Once(function()

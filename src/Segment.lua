@@ -40,9 +40,10 @@ function Segment.new(
 	length: number?
 )
 	local self = setmetatable({
-		cheb = nil,
-		chebDegree = nil,
-		chebIsLUT = nil,
+		arcLengthCheb = nil,
+		arcLengthChebDegree = nil,
+		arcLengthChebIsLUT = nil,
+		keyframeCheb = nil,
 		length = length,
 		rmfLUT = nil,
 		type = pointType,
@@ -348,9 +349,19 @@ end
 -- Arc length reparametrization ------------------------------------------------
 --------------------------------------------------------------------------------
 
+function Segment:Reparametrize(t: number, unitSpeed: boolean?): number
+	if self.keyframeCheb then
+		return self:ReparametrizeAsKeyframeAnimation(t)
+	elseif unitSpeed then
+		return self:ReparametrizeByArcLength(t)
+	else
+		return t
+	end
+end
+
 -- Reparametrizes s in terms of arc length, i.e., returns the input t that
 -- yields the point s of the way along the segment.
-function Segment:Reparametrize(s: number): number
+function Segment:ReparametrizeByArcLength(s: number): number
 	assert(s >= 0 and s <= 1, "Time must be in [0, 1]")
 
 	if s == 0 or s == 1 then
@@ -359,19 +370,19 @@ function Segment:Reparametrize(s: number): number
 		return 0
 	end
 
-	if self.chebIsLUT ~= nil then
-		-- chebIsLUT ~= nil is a proxy to check whether the user called
+	if self.arcLengthChebIsLUT ~= nil then
+		-- arcLengthChebIsLUT ~= nil is a proxy to check whether the user called
 		-- PrecomputeUnitSpeedData
 
-		if not self.cheb then
+		if not self.arcLengthCheb then
 			-- User precomputed with "on demand" preference
-			self.cheb = self:_GetChebyshevInterpolant(self.chebDegree)
+			self.arcLengthCheb = self:_GetInvertedArcLengthCheb(self.arcLengthChebDegree)
 		end
 
-		if self.chebIsLUT then
+		if self.arcLengthChebIsLUT then
 			-- Use the cheb's grid values as a lookup table
-			local grid = self.cheb.grid
-			local gridValues = self.cheb.gridValues
+			local grid = self.arcLengthCheb.grid
+			local gridValues = self.arcLengthCheb.gridValues
 			local leftBound = grid[1]
 		
 			-- TODO: Make this a binary search
@@ -389,16 +400,16 @@ function Segment:Reparametrize(s: number): number
 			warn("\"fast\" reparametrization strategy failed; reverting to \"accurate\" strategy")
 		end
 
-		return self.cheb:Evaluate(s)
+		return self.arcLengthCheb:Evaluate(s)
 	else
-		return self:_ReparametrizeNewtonBisection(s)
+		return self:_ReparametrizeByArcLengthNewtonBisection(s)
 	end
 end
 
 -- Performs the actual arc length reparametrization
 -- s = (1/L) * \int_{0}^{t} |r'(u)|du = (1/L) * (F(t) - F(0)) = F(t)/L
 -- where t is solved as the root-finding problem f(t) = F(t)/L - s = 0.
-function Segment:_ReparametrizeNewtonBisection(s: number): number
+function Segment:_ReparametrizeByArcLengthNewtonBisection(s: number): number
 	local length = self.length
 
 	if s == 0 or s == 1 then
@@ -448,25 +459,53 @@ function Segment:_ReparametrizeNewtonBisection(s: number): number
 	return (lower + upper) / 2
 end
 
-function Segment:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: boolean, degree: number)
-	self.chebIsLUT = useChebAsLUT
+function Segment:PrecomputeUnitSpeedData(precomputeNow: boolean, useArcLengthChebAsLUT: boolean, degree: number)
+	if self.length == 0 then
+		return
+	end
+
+	self.arcLengthChebIsLUT = useArcLengthChebAsLUT
 
 	if precomputeNow then
-		self.cheb = self:_GetChebyshevInterpolant(degree)
+		self.arcLengthCheb = self:_GetInvertedArcLengthCheb(degree)
 	else
 		-- Save the degree for when we create the chebyshev interpolant later
-		self.chebDegree = degree
+		self.arcLengthChebDegree = degree
 	end
 end
 
-function Segment:_GetChebyshevInterpolant(degree: number)
+function Segment:_GetInvertedArcLengthCheb(degree: number)
 	local integrand = getLengthIntegrand(self)
 	local length = self.length
-	local cheb = Chebyshev.new(function(t)
+	local arcLengthCheb = Chebyshev.new(function(t)
 		return GaussLegendre.Ten(integrand, 0, t) / length
 	end, degree)
 
-	return cheb:Invert()
+	return arcLengthCheb:Invert()
+end
+
+function Segment:ReparametrizeAsKeyframeAnimation(t: number): number
+	assert(t >= 0 and t <= 1, "Time must be in [0, 1]")
+
+	if t == 0 or t == 1 then
+		return t
+	elseif self.length == 0 then
+		return 0
+	end
+
+	return self.keyframeCheb:Evaluate(t)
+end
+
+function Segment:_SetKeyframeSegment(keyframeSegment: Types.Segment)
+	local min = keyframeSegment:SolvePosition(0)
+	local width = keyframeSegment:SolvePosition(1) - min
+
+	-- This cheb is assumed to be invertible because
+	-- (1) the keyframes are monotone increasing
+	-- (2) the centripetal parametrization guarantees no self-intersections
+	self.keyframeCheb = Chebyshev.new(function(t)
+		return (keyframeSegment:SolvePosition(t) - min) / width
+	end, 3):Invert()
 end
 
 return Segment

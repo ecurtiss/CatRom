@@ -16,7 +16,15 @@ export type CatRom = typeof(setmetatable(
 export type CatRomMt = {
 	__index: CatRomMt,
 
-	new: (points: {Point}, alpha: number?, tension: number?, loops: boolean?) -> CatRom,
+	new: (
+		points: {Point},
+		props: {
+			alpha: number?,
+			tension: number?,
+			loops: boolean?,
+			keyframes: {number}?
+		}?
+	) -> CatRom,
 	
 	-- Piecewise methods
 	GetSegmentAtTime: (self: CatRom, t: number) -> (Segment, number, number),
@@ -108,9 +116,10 @@ export type CatRomMt = {
 
 export type Segment = typeof(setmetatable(
 	{} :: {
-		cheb: Chebyshev?,
-		chebDegree: number?,
-		chebIsLUT: boolean?,
+		arcLengthCheb: Chebyshev?,
+		arcLengthChebDegree: number?,
+		arcLengthChebIsLUT: boolean?,
+		keyframeCheb: Chebyshev?,
 		length: number,
 		rmfLUT: {CFrame}?,
 		type: PointType,
@@ -168,11 +177,14 @@ export type SegmentMt = {
 	SolveLength: (self: Segment, from: number?, to: number?) -> number,
 	SolveBoundingBox: (self: Segment) -> (Vector, Vector),
 	
-	-- Arc length reparametrization methods
-	Reparametrize: (self: Segment, s: number) -> number,
-	PrecomputeUnitSpeedData: (self: Segment, precomputeNow: boolean, useChebAsLUT: boolean, degree: number) -> (),
-	_ReparametrizeNewtonBisection: (self: Segment, s: number) -> number,
-	_GetChebyshevInterpolant: (self: Segment, degree: number) -> Chebyshev,
+	-- Reparametrization methods
+	Reparametrize: (self: Segment, t: number, unitSpeed: boolean?) -> number,
+	ReparametrizeByArcLength: (self: Segment, s: number) -> number,
+	PrecomputeUnitSpeedData: (self: Segment, precomputeNow: boolean, useArcLengthChebAsLUT: boolean, degree: number) -> (),
+	_ReparametrizeByArcLengthNewtonBisection: (self: Segment, s: number) -> number,
+	_GetInvertedArcLengthCheb: (self: Segment, degree: number) -> Chebyshev,
+	ReparametrizeAsKeyframeAnimation: (self: Segment, t: number) -> number,
+	_SetKeyframeSegment: (self: Segment, keyframeSegment: Segment) -> (),
 }
 
 export type Chebyshev = typeof(setmetatable(
