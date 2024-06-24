@@ -60,10 +60,16 @@ function Utils.Lerp(a: Types.Point, b: Types.Point, t: number): Types.Point
 	return if typeof(a) == "number" then a + (b - a) * t else a:Lerp(b, t)
 end
 
+-- N.B. CFrames are only checked for positional fuzzy-equality because their
+-- rotation is not used when parametrizing a spline
 function Utils.FuzzyEq(a: Types.Point, b: Types.Point, eps: number): boolean
-	return if typeof(a) == "number"
-		then a == b or math.abs(a - b) <= (math.abs(a) + 1) * eps
-		else a:FuzzyEq(b, eps)
+	if typeof(a) == "number" then
+		return a == b or math.abs(a - b) <= (math.abs(a) + 1) * eps
+	elseif typeof(a) == "CFrame" then
+		return a.Position:FuzzyEq(b.Position, eps)
+	else
+		return a:FuzzyEq(b, eps)
+	end
 end
 
 function Utils.Magnitude(v: Types.Vector): number
