@@ -108,9 +108,9 @@ export type CatRomMt = {
 
 export type Segment = typeof(setmetatable(
 	{} :: {
-		cheb: Chebyshev?,
-		chebDegree: number?,
-		chebIsLUT: boolean?,
+		arcLengthCheb: Chebyshev?,
+		arcLengthChebDegree: number?,
+		arcLengthChebIsLUT: boolean?,
 		length: number,
 		rmfLUT: {CFrame}?,
 		type: PointType,
@@ -170,9 +170,9 @@ export type SegmentMt = {
 	
 	-- Arc length reparametrization methods
 	Reparametrize: (self: Segment, s: number) -> number,
-	PrecomputeUnitSpeedData: (self: Segment, precomputeNow: boolean, useChebAsLUT: boolean, degree: number) -> (),
+	PrecomputeUnitSpeedData: (self: Segment, precomputeNow: boolean, useArcLengthChebAsLUT: boolean, degree: number) -> (),
 	_ReparametrizeNewtonBisection: (self: Segment, s: number) -> number,
-	_GetChebyshevInterpolant: (self: Segment, degree: number) -> Chebyshev,
+	_GetInvertedArcLengthCheb: (self: Segment, degree: number) -> Chebyshev,
 }
 
 export type Chebyshev = typeof(setmetatable(

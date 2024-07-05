@@ -46,24 +46,6 @@ CatRom.__index = CatRom
 --- @within CatRom
 --- The chain of interpolating segments that make up the full spline.
 
--- Removes adjacent points that are fuzzy-equal
-local function getUniquePoints(points: {Types.Point}): {Types.Point}
-	local prevPoint = points[1]
-	local uniquePoints = {prevPoint}
-	local i = 2
-
-	for j = 2, #points do
-		local point = points[j]
-		if not Utils.FuzzyEq(point, prevPoint, Constants.MACHINE_EPSILON) then
-			uniquePoints[i] = point
-			i += 1
-			prevPoint = point
-		end
-	end
-
-	return uniquePoints
-end
-
 --[=[
 	Instantiates a [CatRom].
 
@@ -78,25 +60,25 @@ end
 	@tag CFrame
 ]=]
 function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loops: boolean?): Types.CatRom
-	alpha = alpha or Constants.DEFAULT_ALPHA -- Parametrization exponent
+	alpha = alpha or Constants.DEFAULT_ALPHA
 	tension = tension or Constants.DEFAULT_TENSION
 	loops = not not loops
 
 	-- Check types
-	assert(type(points) == "table", "Points must be a table")
-	assert(type(alpha) == "number", "Alpha must be a number")
-	assert(type(tension) == "number", "Tension must be a number")
-	assert(#points > 0, "Points table cannot be empty")
+	assert(type(points) == "table", "points must be a table")
+	assert(type(alpha) == "number", "alpha must be a number")
+	assert(type(tension) == "number", "tension must be a number")
+	assert(#points > 0, "points cannot be empty")
 
 	local pointType = typeof(points[1])
 	assert(pointType == "number" or pointType == "Vector2" or pointType == "Vector3" or pointType == "CFrame",
-		"Points must be a table of numbers, Vector2s, Vector3s, or CFrames")
+		"points must be a table of numbers, Vector2s, Vector3s, or CFrames")
 	for _, point in points do
 		assert(typeof(point) == pointType, "All points must have the same type")
 	end
 
-	-- Get points
-	points = getUniquePoints(points)
+	-- Get final list of points
+	points = SegmentFactory.GetUniquePoints(points)
 
 	if loops and not Utils.FuzzyEq(points[1], points[#points], Constants.MACHINE_EPSILON) then
 		table.insert(points, points[1])
@@ -118,17 +100,16 @@ function CatRom.new(points: {Types.Point}, alpha: number?, tension: number?, loo
 
 	-- Create segments
 	local segments = SegmentFactory.CreateSegments(points, alpha, tension, loops, pointType)
-	local numSegments = #segments
 
-	-- Tally length
+	-- Tally lengths
 	local totalLength = 0
 	for _, segment in segments do
 		totalLength += segment.length
 	end
 
 	-- Create knot vector
-	local knots = table.create(numSegments + 1)
-	knots[numSegments + 1] = 1
+	local knots = table.create(#points)
+	knots[#points] = 1
 
 	local runningLength = 0
 	for i, segment in segments do
@@ -749,7 +730,7 @@ end
 function CatRom:PrecomputeUnitSpeedData(when: "now" | "on demand"?, strategy: "fast" | "accurate"?,  degree: number?)
 	when = when or "now"
 	strategy = strategy or "fast"
-	degree = degree or Constants.DEFAULT_UNIT_SPEED_CHEB_DEGREE
+	degree = degree or Constants.DEFAULT_ARC_LENGTH_CHEB_DEGREE
 
 	assert(when == "now" or when == "on demand", "when must be \"now\" or \"on demand\"")
 	assert(strategy == "fast" or strategy == "accurate", "strategy must be \"fast\" or \"accurate\"")
@@ -859,8 +840,8 @@ function CatRom:SolveBulk(
 
 		-- Run all samples in this segment
 		while nextSampleTime <= domainMax and nextSampleIndex < numSamples do
-			local t = (nextSampleTime - domainMin) / domainWidth
-			f(segment, if unitSpeed then segment:Reparametrize(t) else t)
+			local segmentTime = (nextSampleTime - domainMin) / domainWidth
+			f(segment, if unitSpeed then segment:Reparametrize(segmentTime) else segmentTime)
 			nextSampleTime = a + nextSampleIndex * lerpIncrement
 			nextSampleIndex += 1
 		end

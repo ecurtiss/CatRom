@@ -40,9 +40,9 @@ function Segment.new(
 	length: number?
 )
 	local self = setmetatable({
-		cheb = nil,
-		chebDegree = nil,
-		chebIsLUT = nil,
+		arcLengthCheb = nil,
+		arcLengthChebDegree = nil,
+		arcLengthChebIsLUT = nil,
 		length = length,
 		rmfLUT = nil,
 		type = pointType,
@@ -359,19 +359,19 @@ function Segment:Reparametrize(s: number): number
 		return 0
 	end
 
-	if self.chebIsLUT ~= nil then
-		-- chebIsLUT ~= nil is a proxy to check whether the user called
+	if self.arcLengthChebIsLUT ~= nil then
+		-- arcLengthChebIsLUT ~= nil is a proxy to check whether the user called
 		-- PrecomputeUnitSpeedData
 
-		if not self.cheb then
+		if not self.arcLengthCheb then
 			-- User precomputed with "on demand" preference
-			self.cheb = self:_GetChebyshevInterpolant(self.chebDegree)
+			self.arcLengthCheb = self:_GetInvertedArcLengthCheb(self.arcLengthChebDegree)
 		end
 
-		if self.chebIsLUT then
+		if self.arcLengthChebIsLUT then
 			-- Use the cheb's grid values as a lookup table
-			local grid = self.cheb.grid
-			local gridValues = self.cheb.gridValues
+			local grid = self.arcLengthCheb.grid
+			local gridValues = self.arcLengthCheb.gridValues
 			local leftBound = grid[1]
 		
 			-- TODO: Make this a binary search
@@ -389,7 +389,7 @@ function Segment:Reparametrize(s: number): number
 			warn("\"fast\" reparametrization strategy failed; reverting to \"accurate\" strategy")
 		end
 
-		return self.cheb:Evaluate(s)
+		return self.arcLengthCheb:Evaluate(s)
 	else
 		return self:_ReparametrizeNewtonBisection(s)
 	end
@@ -448,25 +448,29 @@ function Segment:_ReparametrizeNewtonBisection(s: number): number
 	return (lower + upper) / 2
 end
 
-function Segment:PrecomputeUnitSpeedData(precomputeNow: boolean, useChebAsLUT: boolean, degree: number)
-	self.chebIsLUT = useChebAsLUT
+function Segment:PrecomputeUnitSpeedData(precomputeNow: boolean, useArcLengthChebAsLUT: boolean, degree: number)
+	if self.length == 0 then
+		return
+	end
+
+	self.arcLengthChebIsLUT = useArcLengthChebAsLUT
 
 	if precomputeNow then
-		self.cheb = self:_GetChebyshevInterpolant(degree)
+		self.arcLengthCheb = self:_GetInvertedArcLengthCheb(degree)
 	else
 		-- Save the degree for when we create the chebyshev interpolant later
-		self.chebDegree = degree
+		self.arcLengthChebDegree = degree
 	end
 end
 
-function Segment:_GetChebyshevInterpolant(degree: number)
+function Segment:_GetInvertedArcLengthCheb(degree: number)
 	local integrand = getLengthIntegrand(self)
 	local length = self.length
-	local cheb = Chebyshev.new(function(t)
+	local arcLengthCheb = Chebyshev.new(function(t)
 		return GaussLegendre.Ten(integrand, 0, t) / length
 	end, degree)
 
-	return cheb:Invert()
+	return arcLengthCheb:Invert()
 end
 
 return Segment
